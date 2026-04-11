@@ -493,6 +493,7 @@ function getRadiatorEff() { return UPGRADES.radiator[G.upgrades.radiator].eff; }
 
 function updatePod(dt) {
     if (G.phase !== 'play' && G.phase !== 'boss') return;
+    if (G.phase === 'transmission') return;
     const pod = G.pod;
     const tileX = Math.floor(pod.x / TILE);
     const tileY = Math.floor((pod.y + TILE - 1) / TILE); // feet tile
@@ -511,6 +512,8 @@ function updatePod(dt) {
         pod.vy = 0;
         G.onGround = true;
     }
+
+    let moving = false;
 
     // ── Drilling ──
     if (G.drilling) {
@@ -531,7 +534,6 @@ function updatePod(dt) {
     const weightPenalty = Math.max(0.3, 1 - getCargoWeight() / 1000);
     const flySpeed = 250 * enginePow * weightPenalty;
     const moveSpeed = 180 * enginePow;
-    let moving = false;
 
     // Fly up
     if (inputUp()) {
@@ -653,11 +655,12 @@ function updatePod(dt) {
     // ── Check transmissions ──
     checkTransmissions(depth);
 
-    // ── Fuel check ──
-    if (G.fuel <= 0) {
+    // ── Fuel check ── (only die if fuel ran out while moving)
+    if (G.fuel <= 0 && moving) {
         G.fuel = 0;
         die('Fuel Empty');
     }
+    if (G.fuel < 0) G.fuel = 0;
 
     // ── Surface detection (y < 0) ──
     if (pod.y < -TILE * 3) {
@@ -943,9 +946,10 @@ function checkShopEntry() {
         return;
     }
 
+    // Auto-enter shop when standing on/near building and pressing Down or S
     for (const b of BUILDINGS) {
-        if (px >= b.x && px < b.x + b.w && G.pod.y >= -2 * TILE) {
-            if (inputDown() || (isMobile && G.onGround)) {
+        if (px >= b.x && px < b.x + b.w && G.pod.y >= -3 * TILE && G.pod.y <= 0) {
+            if (inputDown()) {
                 openShop(b.action);
                 return;
             }
@@ -2005,11 +2009,10 @@ function showHUD() {
 }
 
 function startGame() {
-    try {
     initAudio();
     initGameState();
     G.phase = 'play';
-    G.fuel = 0; // Must refuel!
+    G.fuel = 3; // Just enough to walk to fuel station
     G.maxFuel = getMaxFuel();
     G.maxHull = getMaxHull();
     G.maxCargo = getMaxCargo();
@@ -2030,10 +2033,6 @@ function startGame() {
     if (!isPortal) {
         checkTransmissions(0);
     }
-    } catch(e) {
-        document.title = 'ERR:' + e.message;
-        alert('startGame error: ' + e.message + '\n' + e.stack);
-    }
 }
 
 function newGame() {
@@ -2044,9 +2043,9 @@ function newGame() {
 
 // ── Click-to-enter shops ──
 canvas.addEventListener('click', e => {
-    if (G.phase !== 'play') return;
-    if (G.pod.y > 0) return; // underground
     initAudio();
+    if (G.phase !== 'play') return;
+    if (G.pod.y > TILE) return; // too far underground
     const px = Math.floor(G.pod.x / TILE);
     for (const b of BUILDINGS) {
         if (px >= b.x && px < b.x + b.w) {
@@ -2107,6 +2106,6 @@ if (isPortal) {
     }
 }
 
-try { requestAnimationFrame(gameLoop); } catch(e) { document.title = 'LOOP_ERR:' + e.message; }
+requestAnimationFrame(gameLoop);
 </script></body></html>
 <!-- built 2026-04-11T13:11:44Z -->
