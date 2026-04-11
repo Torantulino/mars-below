@@ -137,7 +137,7 @@ resize();
 
 // ── Constants ──
 const TILE = 40; // px per tile at 1x zoom
-const MAP_W = 32;
+const MAP_W = 48;
 const MAP_D = 600; // tiles deep
 const FT_PER_TILE = 12.5;
 const GRAVITY = 600; // px/s^2
@@ -260,7 +260,7 @@ let G = {};
 function initGameState() {
     G = {
         phase: 'menu', // menu, play, shop, transmission, boss, dead, victory
-        pod: { x: 5 * TILE, y: -2 * TILE, vx: 0, vy: 0 },
+        pod: { x: 8 * TILE, y: -2 * TILE, vx: 0, vy: 0 },
         fuel: 0, maxFuel: 10,
         hull: 10, maxHull: 10,
         cash: 20, score: 0,
@@ -379,9 +379,9 @@ function generateChunk(chunkY) {
             }
             // Hell barrier
             if (ty >= 576) {
-                if (ty === 576 && tx >= 28) { G.terrain.set(key, { type: T.EMPTY }); continue; }
-                if (ty > 576 && ty < 592 && tx >= 29 && tx <= 31) { G.terrain.set(key, { type: T.EMPTY }); continue; }
-                if (ty >= 576 && ty < 592 && tx >= 29) {
+                if (ty === 576 && tx >= 42) { G.terrain.set(key, { type: T.EMPTY }); continue; }
+                if (ty > 576 && ty < 592 && tx >= 43 && tx <= 47) { G.terrain.set(key, { type: T.EMPTY }); continue; }
+                if (ty >= 576 && ty < 592 && tx >= 43) {
                     // Boss area
                     G.terrain.set(key, { type: T.EMPTY });
                     continue;
@@ -963,15 +963,15 @@ function tryMarsquake() {
 
 // ── Surface Buildings ──
 const BUILDINGS = [
-    { name: 'FUEL STATION', x: 1, w: 4, color: '#0a8', icon: '⛽', action: 'fuel' },
-    { name: 'MINERAL PROCESSOR', x: 7, w: 4, color: '#cc0', icon: '💎', action: 'sell' },
-    { name: 'UPGRADE SHOP', x: 13, w: 4, color: '#f60', icon: '🔧', action: 'upgrades' },
-    { name: 'ITEM SHOP', x: 19, w: 4, color: '#a0f', icon: '🎒', action: 'items' },
-    { name: 'SAVE STATION', x: 25, w: 4, color: '#06f', icon: '💾', action: 'save' },
+    { name: 'FUEL STATION', x: 2, w: 4, color: '#0a8', icon: '⛽', action: 'fuel' },
+    { name: 'MINERAL PROCESSOR', x: 11, w: 4, color: '#cc0', icon: '💎', action: 'sell' },
+    { name: 'UPGRADE SHOP', x: 20, w: 4, color: '#f60', icon: '🔧', action: 'upgrades' },
+    { name: 'ITEM SHOP', x: 29, w: 4, color: '#a0f', icon: '🎒', action: 'items' },
+    { name: 'SAVE STATION', x: 38, w: 4, color: '#06f', icon: '💾', action: 'save' },
 ];
 
 // Portal
-const PORTAL_X = 30;
+const PORTAL_X = 45;
 
 function checkShopEntry() {
     if (G.phase !== 'play') return;
