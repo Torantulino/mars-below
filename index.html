@@ -2005,6 +2005,7 @@ function showHUD() {
 }
 
 function startGame() {
+    try {
     initAudio();
     initGameState();
     G.phase = 'play';
@@ -2028,6 +2029,10 @@ function startGame() {
     // Show initial transmission
     if (!isPortal) {
         checkTransmissions(0);
+    }
+    } catch(e) {
+        document.title = 'ERR:' + e.message;
+        alert('startGame error: ' + e.message + '\n' + e.stack);
     }
 }
 
@@ -2102,6 +2107,6 @@ if (isPortal) {
     }
 }
 
-requestAnimationFrame(gameLoop);
+try { requestAnimationFrame(gameLoop); } catch(e) { document.title = 'LOOP_ERR:' + e.message; }
 </script></body></html>
 <!-- built 2026-04-11T13:11:44Z -->
