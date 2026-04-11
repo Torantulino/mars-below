@@ -31,7 +31,14 @@ canvas{display:block}
 @keyframes barPulse{0%{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 6px #f00}100%{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 18px #f00,0 0 30px rgba(255,0,0,.3)}}
 .bar-warn{animation:barWarn .6s ease-in-out infinite alternate}
 @keyframes barWarn{0%{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 4px #fa0}100%{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 12px #fa0}}
-#hud-right{position:absolute;top:clamp(4px,1.2vw,8px);right:clamp(4px,1.2vw,8px);text-align:right;font-size:clamp(10px,1.8vw,14px);z-index:10}
+#hud-right{position:absolute;top:clamp(4px,1.2vw,8px);right:clamp(4px,1.2vw,8px);text-align:right;font-size:clamp(10px,1.8vw,14px);z-index:10;display:flex;flex-direction:column;gap:4px;align-items:flex-end}
+#depth-display{font-size:clamp(16px,3vw,24px);font-weight:bold;color:#fff;text-shadow:0 0 12px rgba(255,136,0,.6),0 2px 4px rgba(0,0,0,.8);padding:clamp(4px,1vw,8px) clamp(8px,2vw,14px);background:linear-gradient(180deg,rgba(255,136,0,.15),rgba(0,0,0,.7));border:1px solid rgba(255,136,0,.3);border-radius:8px;letter-spacing:1px;min-width:clamp(80px,16vw,140px);text-align:center}
+#depth-display.depth-deep{color:#f80;text-shadow:0 0 16px rgba(255,100,0,.8),0 2px 4px rgba(0,0,0,.8)}
+#depth-display.depth-hell{color:#f44;text-shadow:0 0 20px rgba(255,0,0,.8),0 2px 4px rgba(0,0,0,.8);animation:depthPulse 1s ease-in-out infinite alternate}
+@keyframes depthPulse{0%{box-shadow:0 0 8px rgba(255,0,0,.3)}100%{box-shadow:0 0 20px rgba(255,0,0,.6)}}
+#cash-display{font-size:clamp(14px,2.6vw,22px);font-weight:bold;color:#ffd700;text-shadow:0 0 10px rgba(255,200,0,.5),0 2px 3px rgba(0,0,0,.8);padding:clamp(3px,.8vw,6px) clamp(8px,2vw,14px);background:linear-gradient(180deg,rgba(255,215,0,.1),rgba(0,0,0,.6));border:1px solid rgba(255,215,0,.25);border-radius:8px;letter-spacing:.5px}
+#score-display{font-size:clamp(9px,1.4vw,12px);color:#888;padding:0 4px}
+#shop-cash-pinned{text-align:center;padding:10px 16px;color:#ffd700;font-size:clamp(16px,3vw,22px);font-weight:bold;background:linear-gradient(180deg,rgba(255,215,0,.1),rgba(0,0,0,.8));border-bottom:2px solid rgba(255,215,0,.3);text-shadow:0 0 12px rgba(255,200,0,.4);position:sticky;top:0;z-index:2;width:100%;max-width:min(90vw,500px)}
 #items-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:none;gap:4px;font-size:clamp(10px,1.6vw,13px)}
 @media (hover:none) and (pointer:coarse){#items-bar{display:none!important}}
 #items-bar span{background:rgba(0,0,0,.7);border:1px solid #555;padding:3px 8px;border-radius:4px;cursor:pointer}
@@ -70,6 +77,8 @@ canvas{display:block}
 #mobile-items{bottom:10px;right:10px}
 #hud{top:2px;left:2px;right:2px}
 #hud-right{top:2px;right:2px}
+#depth-display{font-size:clamp(12px,2.5vw,18px);padding:3px 8px;min-width:clamp(60px,14vw,110px)}
+#cash-display{font-size:clamp(11px,2vw,16px);padding:2px 8px}
 .bar{width:clamp(80px,15vw,160px);height:16px}
 .bar-text{font-size:9px;line-height:16px}
 .bar-label{font-size:10px;width:40px}
@@ -111,6 +120,7 @@ canvas{display:block}
 <!-- Shop -->
 <div id="shop-overlay">
 <h2 id="shop-title">SHOP</h2>
+<div id="shop-cash-pinned" style="display:none">💰 $0</div>
 <div id="shop-content"></div>
 <button class="btn" onclick="closeShop()" style="margin-top:12px;min-height:48px;min-width:clamp(120px,30vw,200px)">✕ CLOSE <span style="opacity:.6;font-size:.8em" class="desktop-only">[ESC]</span></button>
 </div>
@@ -1350,19 +1360,19 @@ function openItemShop(title, content) {
 }
 
 function addCashDisplay(content) {
-    const div = document.createElement('div');
-    div.style.cssText = 'text-align:center;padding:14px 16px;margin:8px 0;color:#ffd700;font-size:20px;font-weight:bold;background:rgba(255,215,0,0.08);border:1px solid rgba(255,215,0,0.3);border-radius:6px;text-shadow:0 0 10px rgba(255,200,0,0.4)';
-    div.textContent = '💰 $' + G.cash.toLocaleString();
-    div.id = 'shop-cash-display';
-    content.appendChild(div);
+    updatePinnedCash();
 }
 
 function addCashHeader(content) {
-    const div = document.createElement('div');
-    div.style.cssText = 'text-align:center;padding:8px 16px;margin-bottom:8px;color:#ffd700;font-size:18px;font-weight:bold;background:rgba(255,215,0,0.06);border-bottom:1px solid rgba(255,215,0,0.2)';
-    div.textContent = '💰 Balance: $' + G.cash.toLocaleString();
-    div.id = 'shop-cash-header';
-    content.insertBefore(div, content.firstChild);
+    updatePinnedCash();
+}
+
+function updatePinnedCash() {
+    const el = document.getElementById('shop-cash-pinned');
+    if (el) {
+        el.textContent = '💰 Balance: $' + G.cash.toLocaleString();
+        el.style.display = 'block';
+    }
 }
 
 function saveGame(title, content) {
@@ -1416,6 +1426,7 @@ function loadSave() {
 
 function closeShop() {
     document.getElementById('shop-overlay').style.display = 'none';
+    document.getElementById('shop-cash-pinned').style.display = 'none';
     G.phase = 'play';
     // Auto-save when leaving shops (full save including terrain)
     try {
@@ -2543,23 +2554,24 @@ function drawHUD() {
     const cargoWrap = document.getElementById('cargo-bar-wrap');
     cargoWrap.className = 'bar' + (cargoPct > 0.9 ? ' bar-warn' : ' bar-glow');
 
-    document.getElementById('cash-display').textContent = `$${G.cash.toLocaleString()}`;
+    document.getElementById('cash-display').textContent = `💰 $${G.cash.toLocaleString()}`;
     document.getElementById('score-display').textContent = `Score: ${G.score.toLocaleString()}`;
 
     // Depth display
     const depthFt = Math.round(Math.max(0, G.pod.y / TILE) * FT_PER_TILE);
+    const depthEl = document.getElementById('depth-display');
     if (G.inBossArea) {
-        document.getElementById('depth-display').textContent = '-66,666 ft';
-        document.getElementById('depth-display').style.color = '#f00';
+        depthEl.textContent = '⚠ -66,666 ft';
+        depthEl.className = 'depth-hell';
     } else if (depthFt > 5813) {
-        document.getElementById('depth-display').textContent = `?${String(Math.floor(Math.random() * 99999)).padStart(5, '0')}`;
-        document.getElementById('depth-display').style.color = '#f80';
+        depthEl.textContent = `⚠ ?${String(Math.floor(Math.random() * 99999)).padStart(5, '0')}`;
+        depthEl.className = 'depth-hell';
     } else if (G.pod.y > 0) {
-        document.getElementById('depth-display').textContent = `-${depthFt.toLocaleString()} ft`;
-        document.getElementById('depth-display').style.color = '#fff';
+        depthEl.textContent = `⛏ -${depthFt.toLocaleString()} ft`;
+        depthEl.className = depthFt > 4000 ? 'depth-hell' : depthFt > 2000 ? 'depth-deep' : '';
     } else {
-        document.getElementById('depth-display').textContent = 'Surface';
-        document.getElementById('depth-display').style.color = '#0f0';
+        depthEl.textContent = '📡 Surface';
+        depthEl.className = '';
     }
 
     // Items bar
