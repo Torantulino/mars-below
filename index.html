@@ -20,9 +20,16 @@ canvas{display:block;width:100%;height:100%}
 .btn:active{transform:scale(.95)}
 #hud{position:absolute;top:8px;left:8px;right:8px;font-size:clamp(10px,1.8vw,14px);display:none;pointer-events:none}
 #hud>div{margin-bottom:3px}
-.bar{display:inline-block;width:clamp(80px,15vw,160px);height:14px;background:#222;border:1px solid #555;border-radius:3px;vertical-align:middle;position:relative;overflow:hidden}
-.bar-fill{height:100%;border-radius:2px;transition:width .2s}
-.bar-text{position:absolute;top:0;left:4px;font-size:10px;line-height:14px;color:#fff;text-shadow:0 0 2px #000}
+.bar{display:inline-block;width:clamp(100px,18vw,200px);height:20px;background:rgba(0,0,0,.7);border:2px solid rgba(255,255,255,.15);border-radius:10px;vertical-align:middle;position:relative;overflow:hidden;box-shadow:inset 0 2px 4px rgba(0,0,0,.5)}
+.bar-fill{height:100%;border-radius:8px;transition:width .15s ease-out;position:relative}
+.bar-fill::after{content:'';position:absolute;top:1px;left:4px;right:4px;height:40%;background:linear-gradient(180deg,rgba(255,255,255,.25),transparent);border-radius:6px}
+.bar-text{position:absolute;top:0;left:0;right:0;font-size:11px;line-height:20px;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.9);text-align:center;font-weight:bold;letter-spacing:.5px}
+.bar-label{font-weight:bold;font-size:clamp(11px,1.8vw,14px);display:inline-block;width:50px;text-align:right;margin-right:6px;text-shadow:0 0 8px currentColor}
+.bar-glow{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 8px var(--glow-color,transparent)}
+.bar-critical{animation:barPulse .4s ease-in-out infinite alternate}
+@keyframes barPulse{0%{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 6px #f00}100%{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 18px #f00,0 0 30px rgba(255,0,0,.3)}}
+.bar-warn{animation:barWarn .6s ease-in-out infinite alternate}
+@keyframes barWarn{0%{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 4px #fa0}100%{box-shadow:inset 0 2px 4px rgba(0,0,0,.5),0 0 12px #fa0}}
 #hud-right{position:absolute;top:8px;right:8px;text-align:right;font-size:clamp(10px,1.8vw,14px)}
 #items-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:none;gap:4px;font-size:clamp(10px,1.6vw,13px)}
 #items-bar span{background:rgba(0,0,0,.7);border:1px solid #555;padding:3px 8px;border-radius:4px;cursor:pointer}
@@ -64,9 +71,9 @@ canvas{display:block;width:100%;height:100%}
 </div>
 <!-- HUD -->
 <div id="hud">
-<div>FUEL <span class="bar"><span class="bar-fill" id="fuel-bar" style="background:linear-gradient(90deg,#0a0,#0f0);width:100%"></span><span class="bar-text" id="fuel-text">10/10</span></span></div>
-<div>HULL <span class="bar"><span class="bar-fill" id="hull-bar" style="background:linear-gradient(90deg,#a00,#f44);width:100%"></span><span class="bar-text" id="hull-text">10/10</span></span></div>
-<div>CARGO <span class="bar"><span class="bar-fill" id="cargo-bar" style="background:linear-gradient(90deg,#07a,#0af);width:100%"></span><span class="bar-text" id="cargo-text">0/7</span></span></div>
+<div style="margin-bottom:5px"><span class="bar-label" style="color:#0f0">⛽ FUEL</span><span class="bar" id="fuel-bar-wrap" style="--glow-color:#0f04"><span class="bar-fill" id="fuel-bar" style="background:linear-gradient(90deg,#0a0,#0f0);width:100%"></span><span class="bar-text" id="fuel-text">10/10 L</span></span></div>
+<div style="margin-bottom:5px"><span class="bar-label" style="color:#f44">🛡 HULL</span><span class="bar" id="hull-bar-wrap" style="--glow-color:#f444"><span class="bar-fill" id="hull-bar" style="background:linear-gradient(90deg,#a00,#f44);width:100%"></span><span class="bar-text" id="hull-text">10/10 HP</span></span></div>
+<div><span class="bar-label" style="color:#0af">📦 CARGO</span><span class="bar" id="cargo-bar-wrap" style="--glow-color:#0af4"><span class="bar-fill" id="cargo-bar" style="background:linear-gradient(90deg,#07a,#0af);width:100%"></span><span class="bar-text" id="cargo-text">0/7</span></span></div>
 </div>
 <div id="hud-right" style="display:none">
 <div id="cash-display">$20</div>
@@ -570,7 +577,7 @@ function updatePod(dt) {
 
     // Fly up
     if (inputUp()) {
-        pod.vy = Math.max(pod.vy - flySpeed * dt * 4, -flySpeed);
+        pod.vy = Math.max(pod.vy - flySpeed * dt * 4, -flySpeed * 2.2);
         G.fuel -= FUEL_RATE * FUEL_FLY_MULT * dt;
         moving = true;
         G.onGround = false;
@@ -1654,26 +1661,79 @@ function playSound(type) {
     } catch(e) {}
 }
 
-// Fuel warning beep
+// Fuel & Hull warning sounds - EXTREME
 let fuelBeepTimer = 0;
+let hullBeepTimer = 0;
 function updateFuelWarning(dt) {
     if (G.phase !== 'play' && G.phase !== 'boss') return;
-    const pct = G.fuel / getMaxFuel();
-    if (pct < 0.25 && pct > 0) {
-        const interval = pct < 0.1 ? 0.3 : 0.8;
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+
+    // ── FUEL WARNING ──
+    const fPct = G.fuel / getMaxFuel();
+    if (fPct < 0.25 && fPct > 0) {
+        const critical = fPct < 0.1;
+        const interval = critical ? 0.18 : fPct < 0.15 ? 0.4 : 0.7;
         fuelBeepTimer += dt;
         if (fuelBeepTimer >= interval) {
             fuelBeepTimer = 0;
-            if (audioCtx) {
-                const now = audioCtx.currentTime;
-                const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-                o.connect(g); g.connect(audioCtx.destination);
-                o.frequency.setValueAtTime(pct < 0.1 ? 1200 : 800, now);
-                g.gain.setValueAtTime(0.1, now);
-                g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
-                o.start(now); o.stop(now + 0.1);
+            // Double-beep for critical
+            const vol = critical ? 0.25 : 0.12;
+            const freq = critical ? 1400 : fPct < 0.15 ? 1000 : 700;
+            const o1 = audioCtx.createOscillator(), g1 = audioCtx.createGain();
+            o1.connect(g1); g1.connect(audioCtx.destination);
+            o1.type = critical ? 'square' : 'sine';
+            o1.frequency.setValueAtTime(freq, now);
+            g1.gain.setValueAtTime(vol, now);
+            g1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            o1.start(now); o1.stop(now + 0.12);
+            // Second beep for critical (rapid double-tap)
+            if (critical) {
+                const o2 = audioCtx.createOscillator(), g2 = audioCtx.createGain();
+                o2.connect(g2); g2.connect(audioCtx.destination);
+                o2.type = 'square';
+                o2.frequency.setValueAtTime(freq * 1.2, now + 0.08);
+                g2.gain.setValueAtTime(0, now);
+                g2.gain.setValueAtTime(vol, now + 0.08);
+                g2.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+                o2.start(now + 0.08); o2.stop(now + 0.16);
             }
         }
+    } else {
+        fuelBeepTimer = 0;
+    }
+
+    // ── HULL WARNING (heartbeat) ──
+    const hPct = G.hull / getMaxHull();
+    if (hPct < 0.3 && hPct > 0) {
+        const critical = hPct < 0.15;
+        const interval = critical ? 0.4 : 0.9;
+        hullBeepTimer += dt;
+        if (hullBeepTimer >= interval) {
+            hullBeepTimer = 0;
+            const vol = critical ? 0.2 : 0.08;
+            // Heartbeat: two low thuds
+            const o1 = audioCtx.createOscillator(), g1 = audioCtx.createGain();
+            o1.connect(g1); g1.connect(audioCtx.destination);
+            o1.type = 'sine';
+            o1.frequency.setValueAtTime(critical ? 80 : 60, now);
+            o1.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+            g1.gain.setValueAtTime(vol, now);
+            g1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            o1.start(now); o1.stop(now + 0.12);
+            // Second thud (heartbeat LUB-DUB)
+            const o2 = audioCtx.createOscillator(), g2 = audioCtx.createGain();
+            o2.connect(g2); g2.connect(audioCtx.destination);
+            o2.type = 'sine';
+            o2.frequency.setValueAtTime(critical ? 70 : 50, now + 0.12);
+            o2.frequency.exponentialRampToValueAtTime(35, now + 0.22);
+            g2.gain.setValueAtTime(0, now);
+            g2.gain.setValueAtTime(vol * 0.7, now + 0.12);
+            g2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+            o2.start(now + 0.12); o2.stop(now + 0.25);
+        }
+    } else {
+        hullBeepTimer = 0;
     }
 }
 
@@ -1703,6 +1763,19 @@ function draw() {
         shakeY = (Math.random() - 0.5) * G.screenShake;
         G.screenShake *= 0.9;
         if (G.screenShake < 0.5) G.screenShake = 0;
+    }
+    // Constant micro-shake when fuel or hull critical
+    if (G.phase === 'play' || G.phase === 'boss') {
+        const _fPct = G.fuel / getMaxFuel();
+        const _hPct = G.hull / getMaxHull();
+        if (_fPct < 0.1 && _fPct > 0) {
+            shakeX += (Math.random() - 0.5) * 2.5;
+            shakeY += (Math.random() - 0.5) * 1.5;
+        }
+        if (_hPct < 0.15 && _hPct > 0) {
+            shakeX += (Math.random() - 0.5) * 3;
+            shakeY += (Math.random() - 0.5) * 2;
+        }
     }
 
     ctx.translate(-G.camX + shakeX, -G.camY + shakeY);
@@ -2302,16 +2375,25 @@ function drawHUD() {
     const hullPct = G.hull / getMaxHull();
     const cargoPct = getCargoVolume() / getMaxCargo();
 
+    // Fuel bar
     document.getElementById('fuel-bar').style.width = `${fuelPct * 100}%`;
-    document.getElementById('fuel-bar').style.background = fuelPct < 0.25 ? '#f00' : fuelPct < 0.5 ? '#fa0' : 'linear-gradient(90deg,#0a0,#0f0)';
-    document.getElementById('fuel-text').textContent = `${Math.round(G.fuel)}/${Math.round(getMaxFuel())}`;
+    document.getElementById('fuel-bar').style.background = fuelPct < 0.15 ? '#f00' : fuelPct < 0.3 ? 'linear-gradient(90deg,#c60,#fa0)' : 'linear-gradient(90deg,#0a0,#0f0)';
+    document.getElementById('fuel-text').textContent = `${Math.round(G.fuel)}/${Math.round(getMaxFuel())} L`;
+    const fuelWrap = document.getElementById('fuel-bar-wrap');
+    fuelWrap.className = 'bar' + (fuelPct < 0.15 ? ' bar-critical' : fuelPct < 0.3 ? ' bar-warn' : ' bar-glow');
 
+    // Hull bar
     document.getElementById('hull-bar').style.width = `${hullPct * 100}%`;
-    document.getElementById('hull-bar').style.background = hullPct < 0.25 ? '#f00' : hullPct < 0.5 ? '#fa0' : 'linear-gradient(90deg,#a00,#f44)';
-    document.getElementById('hull-text').textContent = `${Math.round(G.hull)}/${getMaxHull()}`;
+    document.getElementById('hull-bar').style.background = hullPct < 0.2 ? '#f00' : hullPct < 0.4 ? 'linear-gradient(90deg,#c60,#fa0)' : 'linear-gradient(90deg,#a00,#f44)';
+    document.getElementById('hull-text').textContent = `${Math.round(G.hull)}/${getMaxHull()} HP`;
+    const hullWrap = document.getElementById('hull-bar-wrap');
+    hullWrap.className = 'bar' + (hullPct < 0.2 ? ' bar-critical' : hullPct < 0.4 ? ' bar-warn' : ' bar-glow');
 
+    // Cargo bar
     document.getElementById('cargo-bar').style.width = `${cargoPct * 100}%`;
     document.getElementById('cargo-text').textContent = `${getCargoVolume()}/${getMaxCargo()}`;
+    const cargoWrap = document.getElementById('cargo-bar-wrap');
+    cargoWrap.className = 'bar' + (cargoPct > 0.9 ? ' bar-warn' : ' bar-glow');
 
     document.getElementById('cash-display').textContent = `$${G.cash.toLocaleString()}`;
     document.getElementById('score-display').textContent = `Score: ${G.score.toLocaleString()}`;
@@ -2335,15 +2417,77 @@ function drawHUD() {
     // Items bar
     updateItemsBar();
 
-    // Low fuel/hull screen flash
-    if (fuelPct < 0.15 && fuelPct > 0) {
-        ctx.fillStyle = `rgba(255,150,0,${0.05 + Math.sin(G.t * 6) * 0.05})`;
+    // ── EXTREME LOW-RESOURCE WARNINGS ──
+    const dangerFuel = fuelPct < 0.25 && fuelPct > 0;
+    const critFuel = fuelPct < 0.1 && fuelPct > 0;
+    const dangerHull = hullPct < 0.3 && hullPct > 0;
+    const critHull = hullPct < 0.15 && hullPct > 0;
+
+    ctx.save();
+    ctx.setTransform(1,0,0,1,0,0); // reset to screen space
+
+    // Heavy vignette overlay for danger states
+    if (dangerFuel || dangerHull) {
+        const intensity = (critFuel || critHull) ? 0.5 + Math.sin(G.t * 8) * 0.2 : 0.2 + Math.sin(G.t * 4) * 0.1;
+        const vigColor = dangerFuel ? '255,100,0' : '255,0,0';
+        const vig = ctx.createRadialGradient(W/2, H/2, H*0.25, W/2, H/2, H*0.8);
+        vig.addColorStop(0, 'transparent');
+        vig.addColorStop(0.7, `rgba(${vigColor},${intensity * 0.3})`);
+        vig.addColorStop(1, `rgba(${vigColor},${intensity})`);
+        ctx.fillStyle = vig;
         ctx.fillRect(0, 0, W, H);
     }
-    if (hullPct < 0.2 && hullPct > 0) {
-        ctx.fillStyle = `rgba(255,0,0,${0.05 + Math.sin(G.t * 4) * 0.05})`;
-        ctx.fillRect(0, 0, W, H);
+
+    // Pulsing red border for critical
+    if (critFuel || critHull) {
+        const borderAlpha = 0.4 + Math.sin(G.t * 10) * 0.3;
+        const bw = 4 + Math.sin(G.t * 6) * 2;
+        ctx.strokeStyle = critFuel ? `rgba(255,120,0,${borderAlpha})` : `rgba(255,0,0,${borderAlpha})`;
+        ctx.lineWidth = bw;
+        ctx.strokeRect(bw/2, bw/2, W - bw, H - bw);
     }
+
+    // Big flashing WARNING text
+    if (critFuel) {
+        const alpha = 0.6 + Math.sin(G.t * 8) * 0.4;
+        ctx.font = `bold ${Math.floor(H * 0.06)}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(255,80,0,${alpha})`;
+        ctx.fillText('⚠ FUEL CRITICAL ⚠', W/2, H * 0.15);
+        ctx.font = `bold ${Math.floor(H * 0.03)}px 'Courier New', monospace`;
+        ctx.fillStyle = `rgba(255,180,100,${alpha * 0.7})`;
+        ctx.fillText('RETURN TO SURFACE IMMEDIATELY', W/2, H * 0.15 + H * 0.05);
+    }
+    if (critHull) {
+        const alpha = 0.6 + Math.sin(G.t * 6) * 0.4;
+        ctx.font = `bold ${Math.floor(H * 0.06)}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(255,0,0,${alpha})`;
+        const yOff = critFuel ? H * 0.28 : H * 0.15;
+        ctx.fillText('⚠ HULL CRITICAL ⚠', W/2, yOff);
+        ctx.font = `bold ${Math.floor(H * 0.03)}px 'Courier New', monospace`;
+        ctx.fillStyle = `rgba(255,120,120,${alpha * 0.7})`;
+        ctx.fillText('STRUCTURAL INTEGRITY FAILING', W/2, yOff + H * 0.05);
+    }
+
+    // Danger-level text (not critical but getting low)
+    if (dangerFuel && !critFuel) {
+        const alpha = 0.3 + Math.sin(G.t * 3) * 0.2;
+        ctx.font = `bold ${Math.floor(H * 0.035)}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(255,150,50,${alpha})`;
+        ctx.fillText('LOW FUEL', W/2, H * 0.12);
+    }
+    if (dangerHull && !critHull) {
+        const alpha = 0.3 + Math.sin(G.t * 3) * 0.2;
+        ctx.font = `bold ${Math.floor(H * 0.035)}px 'Courier New', monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = `rgba(255,80,80,${alpha})`;
+        const yOff = dangerFuel && !critFuel ? H * 0.17 : H * 0.12;
+        ctx.fillText('LOW HULL', W/2, yOff);
+    }
+
+    ctx.restore();
 }
 
 function updateItemsBar() {
