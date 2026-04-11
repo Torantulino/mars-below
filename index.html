@@ -868,6 +868,7 @@ function completeDrill() {
 
     // Move pod into the dug tile
     if (G.drillDir === 'down') {
+        G.pod.x = tx * TILE;  // Center on drilled tile so pod falls into hole
         G.pod.y = ty * TILE;
     } else if (G.drillDir === 'left') {
         G.pod.x = tx * TILE;
