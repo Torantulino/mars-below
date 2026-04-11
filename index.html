@@ -934,10 +934,10 @@ function dismissTransmission() {
 function tryMarsquake() {
     if (G.score < 100000) return;
     if (rng() < 0.05) {
-        // Reshuffle terrain
+        // Reshuffle terrain but preserve dug passages
         G.terrain.clear();
-        G.dugTiles.clear();
         G.generatedChunks.clear();
+        // dugTiles is NOT cleared — player's passages remain open
         G.screenShake = 30;
         spawnTextParticle(G.pod.x, G.pod.y - 20, '⚠ MARSQUAKE! ⚠', '#f00');
         playSound('quake');
@@ -1001,7 +1001,7 @@ function openFuelShop(title, content) {
         const cost = Math.ceil(liters); // $1 per liter, fair pricing
         const div = document.createElement('div');
         div.className = 'shop-item';
-        div.innerHTML = `<span>+${Math.floor(liters)}L fuel</span><span class="price">$${cost}</span>`;
+        div.innerHTML = `<span>+${Math.ceil(liters)}L fuel</span><span class="price">$${cost}</span>`;
         div.onclick = () => {
             if (G.cash >= cost) {
                 G.cash -= cost;
@@ -2063,10 +2063,20 @@ function newGame() {
 canvas.addEventListener('click', e => {
     initAudio();
     if (G.phase !== 'play') return;
-    if (G.pod.y > TILE) return; // too far underground
-    const px = Math.floor(G.pod.x / TILE);
+    if (G.pod.y > TILE) return; // too far underground — can't enter shops
+    // Convert click screen coords to world coords
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const screenX = (e.clientX - rect.left) * scaleX;
+    const screenY = (e.clientY - rect.top) * scaleY;
+    const worldX = screenX + G.camX;
+    const worldY = screenY + G.camY;
+    // Only register clicks on the surface (above ground level)
+    if (worldY > TILE) return;
+    const clickTx = Math.floor(worldX / TILE);
     for (const b of BUILDINGS) {
-        if (px >= b.x && px < b.x + b.w) {
+        if (clickTx >= b.x && clickTx < b.x + b.w) {
             openShop(b.action);
             return;
         }
