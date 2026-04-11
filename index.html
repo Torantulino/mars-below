@@ -38,10 +38,15 @@ canvas{display:block;width:100%;height:100%}
 #shop-overlay h2{color:#f80;margin-bottom:16px;font-size:clamp(16px,3vw,24px)}
 #shop-content{max-width:min(90vw,500px);width:100%;max-height:70vh;overflow-y:auto;padding:0 16px}
 .shop-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin:4px 0;background:rgba(255,255,255,.05);border:1px solid #333;border-radius:4px;cursor:pointer;font-size:clamp(11px,1.8vw,14px)}
-.shop-item:hover{border-color:#f80;background:rgba(255,136,0,.1)}
+.shop-item:hover,.shop-item.selected{border-color:#f80;background:rgba(255,136,0,.15);outline:none}
+.shop-item.selected{box-shadow:0 0 12px rgba(255,136,0,.3),inset 0 0 8px rgba(255,136,0,.1)}
 .shop-item.owned{border-color:#0a0;opacity:.6;cursor:default}
 .shop-item .price{color:#ff0}
 .shop-item .owned-tag{color:#0f0}
+.shop-item .hotkey{display:inline-block;background:rgba(255,136,0,.25);border:1px solid #f80;border-radius:3px;padding:0 5px;margin-right:6px;font-size:11px;color:#f80;font-weight:bold;min-width:20px;text-align:center;line-height:18px}
+.shop-item.quick-action{border-color:#0f0;background:rgba(0,255,0,.08)}
+.shop-item.quick-action:hover,.shop-item.quick-action.selected{border-color:#0f0;background:rgba(0,255,0,.2);box-shadow:0 0 12px rgba(0,255,0,.3),inset 0 0 8px rgba(0,255,0,.1)}
+.shop-hint{text-align:center;color:#666;font-size:11px;padding:6px 0 2px;letter-spacing:.5px}
 #transmission{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.95);border:1px solid #f80;border-radius:8px;padding:20px;max-width:min(90vw,450px);display:none;z-index:60;text-align:center}
 #transmission h3{color:#f80;margin-bottom:10px;font-size:clamp(12px,2vw,16px)}
 #transmission p{color:#ccc;font-size:clamp(11px,1.8vw,14px);line-height:1.5;margin-bottom:12px}
@@ -85,7 +90,7 @@ canvas{display:block;width:100%;height:100%}
 <div id="shop-overlay">
 <h2 id="shop-title">SHOP</h2>
 <div id="shop-content"></div>
-<button class="btn" onclick="closeShop()" style="margin-top:12px">CLOSE [ESC]</button>
+<button class="btn" onclick="closeShop()" style="margin-top:12px">✕ CLOSE <span style="opacity:.6;font-size:.8em">[ESC]</span></button>
 </div>
 <!-- Transmission -->
 <div id="transmission">
@@ -264,6 +269,8 @@ const TRANSMISSIONS = [
 
 // ── Game State ──
 let G = {};
+let shopSelection = -1; // -1 = no selection, 0+ = index of highlighted item
+let shopCurrentType = ''; // track which shop is open
 function initGameState() {
     G = {
         phase: 'menu', // menu, play, shop, transmission, boss, dead, victory
@@ -917,7 +924,45 @@ function explode(radius) {
 
 // Item key bindings
 window.addEventListener('keydown', e => {
-    if (G.phase === 'shop' && e.key.toLowerCase() === 'escape') { closeShop(); return; }
+    if (G.phase === 'shop') {
+        const key = e.key;
+        const kl = key.toLowerCase();
+        if (kl === 'escape') { closeShop(); return; }
+        
+        // Get all interactive shop items
+        const items = [...document.querySelectorAll('#shop-content .shop-item:not(.owned):not(.shop-item-locked)')];
+        if (items.length === 0) { if (kl === 'enter' || kl === ' ') { closeShop(); return; } return; }
+        
+        // Arrow / WASD navigation
+        if (key === 'ArrowDown' || kl === 's') {
+            e.preventDefault();
+            shopSelection = Math.min(shopSelection + 1, items.length - 1);
+            updateShopSelection(items);
+            return;
+        }
+        if (key === 'ArrowUp' || kl === 'w') {
+            e.preventDefault();
+            shopSelection = Math.max(shopSelection - 1, 0);
+            updateShopSelection(items);
+            return;
+        }
+        
+        // Enter / Space to activate selected item
+        if ((kl === 'enter' || kl === ' ') && shopSelection >= 0 && shopSelection < items.length) {
+            e.preventDefault();
+            items[shopSelection].click();
+            return;
+        }
+        
+        // Number keys 1-9 for quick buy
+        const num = parseInt(key);
+        if (num >= 1 && num <= 9 && num <= items.length) {
+            e.preventDefault();
+            items[num - 1].click();
+            return;
+        }
+        return;
+    }
     if (G.phase === 'transmission' && (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape')) { dismissTransmission(); return; }
     if (G.phase !== 'play' && G.phase !== 'boss') return;
     switch(e.key.toLowerCase()) {
@@ -1007,7 +1052,25 @@ function checkShopEntry() {
     // Note: Shop entry by Down key is now handled in updatePod via isOverShop()
 }
 
+function updateShopSelection(items) {
+    // Clear all selections
+    document.querySelectorAll('#shop-content .shop-item').forEach(el => el.classList.remove('selected'));
+    if (shopSelection >= 0 && shopSelection < items.length) {
+        items[shopSelection].classList.add('selected');
+        items[shopSelection].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
+function addShopHints(content) {
+    const hint = document.createElement('div');
+    hint.className = 'shop-hint';
+    hint.textContent = '↑↓ Navigate · Enter Buy · 1-9 Quick Buy · Esc Close';
+    content.appendChild(hint);
+}
+
 function openShop(type) {
+    shopSelection = 0; // Start with first item selected
+    shopCurrentType = type;
     G.phase = 'shop';
     const overlay = document.getElementById('shop-overlay');
     const title = document.getElementById('shop-title');
@@ -1030,30 +1093,33 @@ function openFuelShop(title, content) {
     title.textContent = '⛽ PROPELLENT VENDOR 12000';
     const needed = Math.ceil(getMaxFuel() - G.fuel);
     const costs = [5, 10, 25, 50];
+    let itemNum = 1;
     costs.forEach(amt => {
         const liters = Math.min(amt, getMaxFuel() - G.fuel);
         if (liters <= 0) return;
-        const cost = Math.ceil(liters); // $1 per liter, fair pricing
+        const cost = Math.ceil(liters);
         const div = document.createElement('div');
         div.className = 'shop-item';
-        div.innerHTML = `<span>+${Math.ceil(liters)}L fuel</span><span class="price">$${cost}</span>`;
+        const n = itemNum++;
+        div.innerHTML = `<span><span class="hotkey">${n}</span>+${Math.ceil(liters)}L fuel</span><span class="price">$${cost}</span>`;
         div.onclick = () => {
             if (G.cash >= cost) {
                 G.cash -= cost;
                 G.fuel = Math.min(G.fuel + liters, getMaxFuel());
                 spawnTextParticle(G.pod.x, G.pod.y - 20, '+' + Math.ceil(liters) + 'L Fuel', '#0f0');
                 playSound('fuel');
-                openShop('fuel'); // refresh
+                openShop('fuel');
             }
         };
         content.appendChild(div);
     });
-    // Fill tank
+    // Fill tank — QUICK ACTION
     const fillCost = Math.ceil(getMaxFuel() - G.fuel);
     if (fillCost > 0) {
         const div = document.createElement('div');
-        div.className = 'shop-item';
-        div.innerHTML = `<span>FILL TANK (${Math.ceil(getMaxFuel() - G.fuel)}L)</span><span class="price">$${fillCost}</span>`;
+        const n = itemNum++;
+        div.className = 'shop-item quick-action';
+        div.innerHTML = `<span><span class="hotkey">${n}</span>⛽ FILL TANK (${Math.ceil(getMaxFuel() - G.fuel)}L)</span><span class="price" style="color:#0f0;font-weight:bold">$${fillCost}</span>`;
         div.onclick = () => {
             if (G.cash >= fillCost) {
                 G.cash -= fillCost;
@@ -1067,6 +1133,12 @@ function openFuelShop(title, content) {
     }
     addCashDisplay(content);
     addCashHeader(content);
+    addShopHints(content);
+    // Auto-select first item
+    setTimeout(() => {
+        const items = [...document.querySelectorAll('#shop-content .shop-item:not(.owned)')];
+        if (items.length > 0) { shopSelection = 0; updateShopSelection(items); }
+    }, 0);
 }
 
 function openSellShop(title, content) {
@@ -1074,27 +1146,27 @@ function openSellShop(title, content) {
     if (G.cargo.length === 0) {
         content.innerHTML = '<p style="color:#888;text-align:center;padding:20px">Cargo is empty. Go dig some minerals!</p>';
         addCashDisplay(content);
+        addShopHints(content);
         return;
     }
     let total = 0;
-    // Group by mineral type
     const counts = {};
     G.cargo.forEach(m => {
         if (!counts[m.id]) counts[m.id] = { mineral: m, count: 0 };
         counts[m.id].count++;
         total += m.value;
     });
+    // Show cargo manifest (not clickable, just info)
     Object.values(counts).forEach(({ mineral: m, count }) => {
         const div = document.createElement('div');
-        div.className = 'shop-item';
+        div.className = 'shop-item owned';
         div.innerHTML = `<span style="color:${m.color}">■ ${m.name} ×${count}</span><span class="price">$${(m.value * count).toLocaleString()}</span>`;
         content.appendChild(div);
     });
+    // SELL ALL — QUICK ACTION
     const sellBtn = document.createElement('div');
-    sellBtn.className = 'shop-item';
-    sellBtn.style.background = 'rgba(0,255,0,.1)';
-    sellBtn.style.borderColor = '#0f0';
-    sellBtn.innerHTML = `<span style="color:#0f0;font-weight:bold">SELL ALL</span><span class="price" style="color:#0f0">+$${total.toLocaleString()}</span>`;
+    sellBtn.className = 'shop-item quick-action';
+    sellBtn.innerHTML = `<span><span class="hotkey">1</span>💎 SELL ALL MINERALS</span><span class="price" style="color:#0f0;font-weight:bold;font-size:16px">+$${total.toLocaleString()}</span>`;
     sellBtn.onclick = () => {
         G.cash += total;
         G.cargo = [];
@@ -1106,16 +1178,22 @@ function openSellShop(title, content) {
     content.appendChild(sellBtn);
     addCashDisplay(content);
     addCashHeader(content);
+    addShopHints(content);
+    // Auto-select SELL ALL
+    setTimeout(() => {
+        const items = [...document.querySelectorAll('#shop-content .shop-item:not(.owned)')];
+        if (items.length > 0) { shopSelection = 0; updateShopSelection(items); }
+    }, 0);
 }
 
 function openUpgradeShop(title, content) {
     title.textContent = '🔧 AUTOBUY 2000';
     const cats = ['drill', 'hull', 'engine', 'fuelTank', 'radiator', 'cargo'];
     const catNames = { drill: 'Drill', hull: 'Hull', engine: 'Engine', fuelTank: 'Fuel Tank', radiator: 'Radiator', cargo: 'Cargo Bay' };
+    let itemNum = 1;
     cats.forEach(cat => {
         const current = G.upgrades[cat];
         const tiers = UPGRADES[cat];
-        // Header
         const hdr = document.createElement('div');
         hdr.style.cssText = 'color:#f80;padding:8px 4px 2px;font-size:12px;font-weight:bold;margin-top:8px;border-bottom:1px solid #333';
         hdr.textContent = `${catNames[cat]} — Current: ${tiers[current].name}`;
@@ -1124,7 +1202,6 @@ function openUpgradeShop(title, content) {
         for (let i = 0; i < tiers.length; i++) {
             const tier = tiers[i];
             const div = document.createElement('div');
-            div.className = 'shop-item' + (i <= current ? ' owned' : '');
             let stats = '';
             if (cat === 'drill') stats = `Speed: ${tier.speed}x`;
             else if (cat === 'hull') stats = `HP: ${tier.hp}`;
@@ -1134,14 +1211,16 @@ function openUpgradeShop(title, content) {
             else if (cat === 'cargo') stats = `${tier.capacity} slots`;
 
             if (i <= current) {
+                div.className = 'shop-item owned';
                 div.innerHTML = `<span>${tier.name} — ${stats}</span><span class="owned-tag">OWNED</span>`;
             } else if (i === current + 1) {
-                div.innerHTML = `<span>${tier.name} — ${stats}</span><span class="price">$${tier.cost.toLocaleString()}</span>`;
+                div.className = 'shop-item';
+                const n = itemNum++;
+                div.innerHTML = `<span><span class="hotkey">${n <= 9 ? n : ''}</span>${tier.name} — ${stats}</span><span class="price">$${tier.cost.toLocaleString()}</span>`;
                 div.onclick = () => {
                     if (G.cash >= tier.cost) {
                         G.cash -= tier.cost;
                         G.upgrades[cat] = i;
-                        // Hull and fuel tank purchases restore to max
                         if (cat === 'hull') { G.maxHull = getMaxHull(); G.hull = G.maxHull; }
                         if (cat === 'fuelTank') { G.maxFuel = getMaxFuel(); G.fuel = G.maxFuel; }
                         G.maxCargo = getMaxCargo();
@@ -1152,6 +1231,7 @@ function openUpgradeShop(title, content) {
                     }
                 };
             } else {
+                div.className = 'shop-item shop-item-locked';
                 div.innerHTML = `<span style="opacity:.4">${tier.name} — ${stats}</span><span class="price" style="opacity:.4">$${tier.cost.toLocaleString()}</span>`;
                 div.style.cursor = 'default';
                 div.style.opacity = '0.3';
@@ -1161,14 +1241,21 @@ function openUpgradeShop(title, content) {
     });
     addCashDisplay(content);
     addCashHeader(content);
+    addShopHints(content);
+    setTimeout(() => {
+        const items = [...document.querySelectorAll('#shop-content .shop-item:not(.owned):not(.shop-item-locked)')];
+        if (items.length > 0) { shopSelection = 0; updateShopSelection(items); }
+    }, 0);
 }
 
 function openItemShop(title, content) {
     title.textContent = '🎒 EMENDATION STATION 3500';
+    let itemNum = 1;
     SHOP_ITEMS.forEach(item => {
         const div = document.createElement('div');
         div.className = 'shop-item';
-        div.innerHTML = `<span>${item.name} <small style="color:#888">(${item.desc}) [${item.key.toUpperCase()}]</small> ×${G.items[item.id]}</span><span class="price">$${item.cost.toLocaleString()}</span>`;
+        const n = itemNum++;
+        div.innerHTML = `<span><span class="hotkey">${n}</span>${item.name} <small style="color:#888">(${item.desc}) [${item.key.toUpperCase()}]</small> ×${G.items[item.id]}</span><span class="price">$${item.cost.toLocaleString()}</span>`;
         div.onclick = () => {
             if (G.cash >= item.cost) {
                 G.cash -= item.cost;
@@ -1180,12 +1267,13 @@ function openItemShop(title, content) {
         };
         content.appendChild(div);
     });
-    // Repair hull
+    // Repair hull — QUICK ACTION
     const repairCost = Math.ceil((getMaxHull() - G.hull) * 15);
     if (repairCost > 0) {
         const div = document.createElement('div');
-        div.className = 'shop-item';
-        div.innerHTML = `<span>Repair Hull (+${getMaxHull() - G.hull} HP)</span><span class="price">$${repairCost.toLocaleString()}</span>`;
+        const n = itemNum++;
+        div.className = 'shop-item quick-action';
+        div.innerHTML = `<span><span class="hotkey">${n <= 9 ? n : ''}</span>🔧 Repair Hull (+${getMaxHull() - G.hull} HP)</span><span class="price" style="color:#0f0;font-weight:bold">$${repairCost.toLocaleString()}</span>`;
         div.onclick = () => {
             if (G.cash >= repairCost) {
                 G.cash -= repairCost;
@@ -1199,6 +1287,11 @@ function openItemShop(title, content) {
     }
     addCashDisplay(content);
     addCashHeader(content);
+    addShopHints(content);
+    setTimeout(() => {
+        const items = [...document.querySelectorAll('#shop-content .shop-item:not(.owned)')];
+        if (items.length > 0) { shopSelection = 0; updateShopSelection(items); }
+    }, 0);
 }
 
 function addCashDisplay(content) {
@@ -1229,7 +1322,7 @@ function saveGame(title, content) {
     };
     try {
         localStorage.setItem('marsBelow_save', JSON.stringify(saveData));
-        content.innerHTML = '<p style="color:#0f0;text-align:center;padding:30px;font-size:16px">✅ Game Saved!</p><p style="color:#888;text-align:center">Your progress is safe.</p>';
+        content.innerHTML = '<p style="color:#0f0;text-align:center;padding:30px;font-size:16px">✅ Game Saved!</p><p style="color:#888;text-align:center">Your progress is safe.</p><div class="shop-hint">Press Esc to close</div>';
         playSound('save');
     } catch(e) {
         content.innerHTML = '<p style="color:#f44;text-align:center;padding:30px">❌ Save failed (storage full?)</p>';
