@@ -633,8 +633,7 @@ function updatePod(dt) {
 
     // ── Input-based movement ──
     const enginePow = getEnginePower();
-    const weightPenalty = Math.max(0.3, 1 - getCargoWeight() / 1000);
-    const flySpeed = 140 * enginePow * weightPenalty;
+    const flySpeed = 140 * enginePow;
     const moveSpeed = 180 * enginePow;
 
     // Fly up
