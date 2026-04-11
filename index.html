@@ -1,0 +1,2105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Mars Below — A Motherload Tribute</title>
+<script async src="https://vibej.am/2026/widget.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#000;font-family:'Courier New',monospace;color:#fff;touch-action:none;user-select:none}
+canvas{display:block;width:100%;height:100%}
+#ui{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+#ui>*{pointer-events:auto}
+.overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(0,0,0,.85)}
+.overlay h1{font-size:clamp(24px,5vw,48px);margin-bottom:12px;text-shadow:0 0 20px #f80}
+.overlay h2{font-size:clamp(16px,3vw,28px);color:#f80;margin-bottom:24px}
+.overlay p{font-size:clamp(12px,2vw,18px);color:#aaa;margin:4px 0;max-width:500px;text-align:center;line-height:1.4}
+.btn{background:linear-gradient(180deg,#f80,#c60);color:#fff;border:none;padding:12px 32px;font-size:clamp(14px,2.5vw,22px);font-family:inherit;cursor:pointer;border-radius:6px;margin:8px;text-shadow:0 1px 2px rgba(0,0,0,.5);transition:transform .1s}
+.btn:hover{transform:scale(1.05)}
+.btn:active{transform:scale(.95)}
+#hud{position:absolute;top:8px;left:8px;right:8px;font-size:clamp(10px,1.8vw,14px);display:none;pointer-events:none}
+#hud>div{margin-bottom:3px}
+.bar{display:inline-block;width:clamp(80px,15vw,160px);height:14px;background:#222;border:1px solid #555;border-radius:3px;vertical-align:middle;position:relative;overflow:hidden}
+.bar-fill{height:100%;border-radius:2px;transition:width .2s}
+.bar-text{position:absolute;top:0;left:4px;font-size:10px;line-height:14px;color:#fff;text-shadow:0 0 2px #000}
+#hud-right{position:absolute;top:8px;right:8px;text-align:right;font-size:clamp(10px,1.8vw,14px)}
+#items-bar{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:none;gap:4px;font-size:clamp(10px,1.6vw,13px)}
+#items-bar span{background:rgba(0,0,0,.7);border:1px solid #555;padding:3px 8px;border-radius:4px;cursor:pointer}
+#items-bar span:hover{border-color:#f80}
+#shop-overlay{position:absolute;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.9);display:none;flex-direction:column;align-items:center;justify-content:center;z-index:50}
+#shop-overlay h2{color:#f80;margin-bottom:16px;font-size:clamp(16px,3vw,24px)}
+#shop-content{max-width:min(90vw,500px);width:100%;max-height:70vh;overflow-y:auto;padding:0 16px}
+.shop-item{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;margin:4px 0;background:rgba(255,255,255,.05);border:1px solid #333;border-radius:4px;cursor:pointer;font-size:clamp(11px,1.8vw,14px)}
+.shop-item:hover{border-color:#f80;background:rgba(255,136,0,.1)}
+.shop-item.owned{border-color:#0a0;opacity:.6;cursor:default}
+.shop-item .price{color:#ff0}
+.shop-item .owned-tag{color:#0f0}
+#transmission{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.95);border:1px solid #f80;border-radius:8px;padding:20px;max-width:min(90vw,450px);display:none;z-index:60;text-align:center}
+#transmission h3{color:#f80;margin-bottom:10px;font-size:clamp(12px,2vw,16px)}
+#transmission p{color:#ccc;font-size:clamp(11px,1.8vw,14px);line-height:1.5;margin-bottom:12px}
+#dpad{position:absolute;bottom:20px;left:20px;display:none;width:120px;height:120px}
+.dpad-btn{position:absolute;width:40px;height:40px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.dpad-btn:active{background:rgba(255,136,0,.4)}
+#dpad .up{top:0;left:40px}
+#dpad .down{bottom:0;left:40px}
+#dpad .left{top:40px;left:0}
+#dpad .right{top:40px;right:0}
+#mobile-items{position:absolute;bottom:20px;right:20px;display:none;flex-direction:column;gap:6px}
+.mob-btn{width:40px;height:40px;background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer}
+.mob-btn:active{background:rgba(255,136,0,.4)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+<!-- Start Screen -->
+<div id="start-screen" class="overlay">
+<h1>⛏️ MARS BELOW</h1>
+<h2>A Motherload Tribute</h2>
+<p>Drill beneath Mars. Sell minerals. Upgrade your pod. Discover what lurks below.</p>
+<p style="color:#666;margin-top:8px">WASD/Arrows to move · Dig down · Fly up · Don't run out of fuel</p>
+<button class="btn" onclick="startGame()">START MINING</button>
+<p style="color:#444;margin-top:16px;font-size:10px">Cursor Vibe Jam 2026 · 100% AI-Generated</p>
+</div>
+<!-- HUD -->
+<div id="hud">
+<div>FUEL <span class="bar"><span class="bar-fill" id="fuel-bar" style="background:linear-gradient(90deg,#0a0,#0f0);width:100%"></span><span class="bar-text" id="fuel-text">10/10</span></span></div>
+<div>HULL <span class="bar"><span class="bar-fill" id="hull-bar" style="background:linear-gradient(90deg,#a00,#f44);width:100%"></span><span class="bar-text" id="hull-text">10/10</span></span></div>
+<div>CARGO <span class="bar"><span class="bar-fill" id="cargo-bar" style="background:linear-gradient(90deg,#07a,#0af);width:100%"></span><span class="bar-text" id="cargo-text">0/7</span></span></div>
+</div>
+<div id="hud-right" style="display:none">
+<div id="cash-display">$20</div>
+<div id="depth-display">0 ft</div>
+<div id="score-display">Score: 0</div>
+</div>
+<div id="items-bar"></div>
+<!-- Shop -->
+<div id="shop-overlay">
+<h2 id="shop-title">SHOP</h2>
+<div id="shop-content"></div>
+<button class="btn" onclick="closeShop()" style="margin-top:12px">CLOSE [ESC]</button>
+</div>
+<!-- Transmission -->
+<div id="transmission">
+<h3 id="tx-sender">FROM: Mr. Natas</h3>
+<p id="tx-msg"></p>
+<button class="btn" onclick="dismissTransmission()" style="font-size:12px;padding:6px 16px">DISMISS</button>
+</div>
+<!-- D-pad (mobile) -->
+<div id="dpad">
+<div class="dpad-btn up" data-dir="up">▲</div>
+<div class="dpad-btn down" data-dir="down">▼</div>
+<div class="dpad-btn left" data-dir="left">◀</div>
+<div class="dpad-btn right" data-dir="right">▶</div>
+</div>
+<div id="mobile-items">
+<div class="mob-btn" data-item="fuel" title="Fuel Tank [F]">⛽</div>
+<div class="mob-btn" data-item="nano" title="Nanobots [R]">🔧</div>
+<div class="mob-btn" data-item="dyna" title="Dynamite [X]">💣</div>
+<div class="mob-btn" data-item="c4" title="C4 [C]">💥</div>
+<div class="mob-btn" data-item="qtp" title="Q-Teleport [Q]">⚡</div>
+<div class="mob-btn" data-item="mtt" title="M-Transmit [M]">🌀</div>
+</div>
+<!-- Game Over -->
+<div id="gameover-screen" class="overlay" style="display:none">
+<h1>💀 POD DESTROYED</h1>
+<h2 id="death-cause">Fuel Empty</h2>
+<p id="death-stats"></p>
+<button class="btn" onclick="loadSave()">LOAD SAVE</button>
+<button class="btn" onclick="newGame()">NEW GAME</button>
+</div>
+<!-- Victory -->
+<div id="victory-screen" class="overlay" style="display:none">
+<h1>🏆 MARS LIBERATED</h1>
+<h2>Mr. Natas Defeated!</h2>
+<p id="victory-stats"></p>
+<button class="btn" onclick="newGame()">NEW GAME+</button>
+</div>
+</div>
+// ═══════════════════════════════════════════════════════════
+// MARS BELOW — Core Engine
+// A Motherload Tribute · Cursor Vibe Jam 2026 · 100% AI-Gen
+// ═══════════════════════════════════════════════════════════
+
+// ── Canvas & Context ──
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W, H, scale = 1;
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    scale = Math.min(W, H) / 600;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Constants ──
+const TILE = 24; // px per tile at 1x zoom
+const MAP_W = 32;
+const MAP_D = 600; // tiles deep
+const FT_PER_TILE = 12.5;
+const GRAVITY = 600; // px/s^2
+const MAX_FALL_V = 500; // terminal velocity px/s
+const FUEL_RATE = 0.4; // liters/sec base movement
+const FUEL_FLY_MULT = 1.5;
+
+// ── Seeded RNG ──
+let seed = Date.now();
+function rng() { seed ^= seed << 13; seed ^= seed >> 17; seed ^= seed << 5; return (seed >>> 0) / 4294967296; }
+function rngRange(a, b) { return a + rng() * (b - a); }
+function rngInt(a, b) { return Math.floor(rngRange(a, b + 1)); }
+
+// ── Mineral Definitions ──
+const MINERALS = [
+    { id: 'ironium', name: 'Ironium', value: 30, points: 1500, weight: 10, minDepth: 0, color: '#8B6914', prob: 0.12 },
+    { id: 'bronzium', name: 'Bronzium', value: 60, points: 3000, weight: 10, minDepth: 0, color: '#CD7F32', prob: 0.09 },
+    { id: 'silverium', name: 'Silverium', value: 100, points: 5000, weight: 10, minDepth: 0, color: '#C0C0C0', prob: 0.06 },
+    { id: 'goldium', name: 'Goldium', value: 250, points: 12500, weight: 20, minDepth: 0, color: '#FFD700', prob: 0.04 },
+    { id: 'platinium', name: 'Platinium', value: 750, points: 37500, weight: 30, minDepth: 60, color: '#DCDCDC', prob: 0.035 },
+    { id: 'einsteinium', name: 'Einsteinium', value: 2000, points: 100000, weight: 40, minDepth: 125, color: '#00CED1', prob: 0.025 },
+    { id: 'emerald', name: 'Emerald', value: 5000, points: 250000, weight: 60, minDepth: 190, color: '#50C878', prob: 0.018 },
+    { id: 'ruby', name: 'Ruby', value: 20000, points: 1000000, weight: 80, minDepth: 255, color: '#E0115F', prob: 0.012 },
+    { id: 'diamond', name: 'Diamond', value: 100000, points: 5000000, weight: 100, minDepth: 320, color: '#B9F2FF', prob: 0.006 },
+    { id: 'amazonite', name: 'Amazonite', value: 500000, points: 5000000, weight: 120, minDepth: 385, color: '#00C5CD', prob: 0.003 },
+];
+
+// ── Artifacts ──
+const ARTIFACTS = [
+    { name: 'Dinosaur Bones', value: 1000, points: 5000000 },
+    { name: 'Treasure Chest', value: 5000, points: 5000000 },
+    { name: 'Martian Skeleton', value: 10000, points: 5000000 },
+    { name: 'Religious Symbol', value: 50000, points: 5000000 },
+];
+
+// ── Upgrade Tables ──
+const UPGRADES = {
+    drill: [
+        { name: 'Stock Drill', speed: 1.0, cost: 0 },
+        { name: 'Silvide Drill', speed: 1.4, cost: 750 },
+        { name: 'Goldium Drill', speed: 2.0, cost: 2000 },
+        { name: 'Emerald Drill', speed: 2.5, cost: 5000 },
+        { name: 'Ruby Drill', speed: 3.5, cost: 20000 },
+        { name: 'Diamond Drill', speed: 4.75, cost: 100000 },
+        { name: 'Amazonite Drill', speed: 6.0, cost: 500000 },
+    ],
+    hull: [
+        { name: 'Stock Hull', hp: 10, cost: 0 },
+        { name: 'Ironium Hull', hp: 17, cost: 750 },
+        { name: 'Bronzium Hull', hp: 30, cost: 2000 },
+        { name: 'Steel Hull', hp: 50, cost: 5000 },
+        { name: 'Platinium Hull', hp: 80, cost: 20000 },
+        { name: 'Einsteinium Hull', hp: 120, cost: 100000 },
+        { name: 'Energy Shield', hp: 180, cost: 500000 },
+    ],
+    engine: [
+        { name: 'Stock Engine', power: 1.0, cost: 0 },
+        { name: 'V4 1600cc', power: 1.15, cost: 750 },
+        { name: 'V4 Turbo', power: 1.3, cost: 2000 },
+        { name: 'V6 3.8L', power: 1.5, cost: 5000 },
+        { name: 'V8 SC 5.0L', power: 1.75, cost: 20000 },
+        { name: 'V12 6.0L', power: 2.0, cost: 100000 },
+        { name: 'V16 Jag', power: 2.5, cost: 500000 },
+    ],
+    fuelTank: [
+        { name: 'Micro Tank', capacity: 10, cost: 0 },
+        { name: 'Medium Tank', capacity: 15, cost: 750 },
+        { name: 'Huge Tank', capacity: 25, cost: 2000 },
+        { name: 'Gigantic Tank', capacity: 40, cost: 5000 },
+        { name: 'Titanic Tank', capacity: 60, cost: 20000 },
+        { name: 'Leviathan Tank', capacity: 100, cost: 100000 },
+        { name: 'Liquid Comp.', capacity: 150, cost: 500000 },
+    ],
+    radiator: [
+        { name: 'Stock Fan', eff: 0, cost: 0 },
+        { name: 'Dual Fans', eff: 0.10, cost: 2000 },
+        { name: 'Single Turbine', eff: 0.25, cost: 5000 },
+        { name: 'Dual Turbines', eff: 0.40, cost: 20000 },
+        { name: 'Puron Cooling', eff: 0.60, cost: 100000 },
+        { name: 'Tri-Turbine', eff: 0.80, cost: 500000 },
+    ],
+    cargo: [
+        { name: 'Micro Bay', capacity: 7, cost: 0 },
+        { name: 'Medium Bay', capacity: 15, cost: 750 },
+        { name: 'Huge Bay', capacity: 25, cost: 2000 },
+        { name: 'Gigantic Bay', capacity: 40, cost: 5000 },
+        { name: 'Titanic Bay', capacity: 70, cost: 20000 },
+        { name: 'Leviathan Bay', capacity: 120, cost: 100000 },
+    ],
+};
+
+// ── Consumable Items ──
+const SHOP_ITEMS = [
+    { id: 'fuelTank', name: 'Reserve Fuel', desc: '+25L fuel', cost: 2000, key: 'f' },
+    { id: 'nanobots', name: 'Hull Nanobots', desc: '+30 HP', cost: 7500, key: 'r' },
+    { id: 'dynamite', name: 'Dynamite', desc: '3×3 blast', cost: 2000, key: 'x' },
+    { id: 'plastic', name: 'Plastic Explosive', desc: '5×5 blast', cost: 5000, key: 'c' },
+    { id: 'quantumTP', name: 'Quantum Teleporter', desc: 'Risky surface TP', cost: 2000, key: 'q' },
+    { id: 'matterTX', name: 'Matter Transmitter', desc: 'Safe surface TP', cost: 10000, key: 'm' },
+];
+
+// ── Transmissions ──
+const TRANSMISSIONS = [
+    { depthTile: 0, sender: 'Mr. Natas', msg: "We forgot to refuel you on the way over! Drive over to the fuel station (Left) and fill 'er up! Dig underground, collect minerals, sell them at the surface. The deeper you dig, the more valuable the minerals. Don't forget to refuel — Good Luck!", reward: 0 },
+    { depthTile: 40, sender: 'Mr. Natas', msg: "Good! I see you're adapting well to the Martian soil! Here's a little something to help you on your way.", reward: 1000 },
+    { depthTile: 80, sender: 'Mr. Natas', msg: "Congratulations on reaching 1000 ft! I've wired you a bonus. We're picking up heavy vibrations from the planet core — they seem to be causing earthquakes and garbled transmissions. Just ignore them.", reward: 3000 },
+    { depthTile: 140, sender: 'Unidentified Source', msg: "The eyes... oh my god, THE EYES!!!", reward: 0 },
+    { depthTile: 168, sender: 'Pod #3422-2', msg: "I'm surprised to find another signal around here... I'm the only miner who hasn't disappeared in the past three years. Next week, I finally get to retire. Wealthy, to the moons of Jupiter with my wife and three daughters.", reward: 0 },
+    { depthTile: 200, sender: 'Unidentified Source', msg: "Is anyone there?! I need help badly!! I can't feel my legs — Oh god, he's coming back... OH NO!! PLEASE HELP ME!!! AAAHHHHGGGK!", reward: 0 },
+    { depthTile: 248, sender: 'Pod #3422-2', msg: "How are you making out, kid? Make sure you don't neglect your radiator. I ran into a lava pocket a few moments ago, but my twin turbines dissipated the heat amazingly — probably saved my life.", reward: 0 },
+    { depthTile: 280, sender: 'Mr. Natas', msg: "Once again, congratulations! Watch out for natural gas pockets — they're undetectable and highly explosive! Your altimeter is only rated for about 6000 ft. After that, you'll need to turn back. Really — it's just too dangerous.", reward: 0 },
+    { depthTile: 328, sender: 'Pod #3422-2', msg: "Trapped... in a crevasse. Earthquake damaged my drill and I'm out of fuel. This will probably be my last transmission. Tell my kids... I love them... I— what? YOU!?? what are you doing dow—AARGH!", reward: 0 },
+    { depthTile: 360, sender: 'Pod #10043', msg: "Oh BABY!!! THIS IS IT!!! I HIT THE MOTHERLOAD!!!!! I'm rich, I'm FILTHY rich!! Hey, what the!?? NO! IT CAN'T BE!!!! OH GOD!!", reward: 0 },
+    { depthTile: 465, sender: 'Mr. Natas', msg: "You are violating the terms of your employment! Turn back immediately!", reward: 0 },
+    { depthTile: 545, sender: 'Mr. Natas', msg: "Return to the surface immediately or you'll be terminated... er... as in fired!", reward: 0 },
+];
+
+// ── Game State ──
+let G = {};
+function initGameState() {
+    G = {
+        phase: 'menu', // menu, play, shop, transmission, boss, dead, victory
+        pod: { x: 5 * TILE, y: -2 * TILE, vx: 0, vy: 0 },
+        fuel: 0, maxFuel: 10,
+        hull: 10, maxHull: 10,
+        cash: 20, score: 0,
+        cargo: [], maxCargo: 7,
+        upgrades: { drill: 0, hull: 0, engine: 0, fuelTank: 0, radiator: 0, cargo: 0 },
+        items: { fuelTank: 0, nanobots: 0, dynamite: 0, plastic: 0, quantumTP: 0, matterTX: 0 },
+        terrain: new Map(),
+        dugTiles: new Set(),
+        generatedChunks: new Set(),
+        deepest: 0,
+        txSeen: new Set(),
+        satanHeads: 0,
+        quakeTriggered: false,
+        onGround: false,
+        drilling: false,
+        drillDir: null,
+        drillProgress: 0,
+        drillTarget: null,
+        fallStart: -Infinity,
+        portalActive: false,
+        refGame: null,
+        username: 'Miner',
+        podColor: '#f80',
+        camX: 0, camY: 0,
+        t: 0,
+        particles: [],
+        screenShake: 0,
+        fuelWarning: 0,
+        bossPhase: 0, bossHP: 0, bossMaxHP: 0, bossX: 0, bossY: 0,
+        bossAttackTimer: 0, bossAttack: null, bossLaserAngle: 0,
+        bossProjectiles: [],
+        inBossArea: false,
+        musicStarted: false,
+    };
+}
+initGameState();
+
+// ── Portal Detection ──
+const urlParams = new URLSearchParams(window.location.search);
+const isPortal = urlParams.get('portal') === 'true';
+const refGame = urlParams.get('ref');
+const pUsername = urlParams.get('username');
+const pColor = urlParams.get('color');
+
+// ── Tile Types ──
+const T = { EMPTY: 0, DIRT: 1, ROCK: 2, LAVA: 3, GAS: 4, MINERAL: 5, ARTIFACT: 6, BARRIER: 7 };
+
+// ── Terrain Generation ──
+function getDepthZone(ty) {
+    if (ty < 0) return 'surface';
+    if (ty < 60) return 'shallow';
+    if (ty < 120) return 'midshallow';
+    if (ty < 240) return 'rock';
+    if (ty < 380) return 'lava';
+    if (ty < 465) return 'gas';
+    if (ty < 576) return 'abyss';
+    return 'hell';
+}
+
+function getSoilColor(ty) {
+    if (ty < 0) return '#442211';
+    const zones = [
+        [60, '#6B4226', '#5A3520'],
+        [120, '#5A3520', '#4A2A18'],
+        [240, '#4A2A18', '#3A3A3A'],
+        [380, '#3A3A3A', '#4A1A1A'],
+        [465, '#4A1A1A', '#1A1A2A'],
+        [576, '#1A1A2A', '#0A0A0A'],
+        [600, '#1A0505', '#0D0000'],
+    ];
+    for (const [maxTy, c1, c2] of zones) {
+        if (ty < maxTy) {
+            const prev = zones[zones.indexOf(zones.find(z => z[0] === maxTy)) - 1];
+            const minTy = prev ? prev[0] : 0;
+            const t = (ty - minTy) / (maxTy - minTy);
+            return lerpColor(c1, c2, t);
+        }
+    }
+    return '#0D0000';
+}
+
+function lerpColor(a, b, t) {
+    const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+    const r = Math.round(((pa >> 16) & 0xFF) * (1 - t) + ((pb >> 16) & 0xFF) * t);
+    const g = Math.round(((pa >> 8) & 0xFF) * (1 - t) + ((pb >> 8) & 0xFF) * t);
+    const bl = Math.round((pa & 0xFF) * (1 - t) + (pb & 0xFF) * t);
+    return `rgb(${r},${g},${bl})`;
+}
+
+function generateChunk(chunkY) {
+    if (G.generatedChunks.has(chunkY)) return;
+    G.generatedChunks.add(chunkY);
+    const startTy = chunkY * 50;
+    const endTy = startTy + 50;
+    // Save/restore seed for deterministic gen
+    const savedSeed = seed;
+    seed = chunkY * 999983 + 12345;
+    for (let ty = startTy; ty < endTy && ty < MAP_D; ty++) {
+        for (let tx = 0; tx < MAP_W; tx++) {
+            if (ty < 0) continue;
+            const key = `${tx},${ty}`;
+            if (G.terrain.has(key)) continue;
+            // Hell barrier
+            if (ty >= 576) {
+                if (ty === 576 && tx >= 28) { G.terrain.set(key, { type: T.EMPTY }); continue; }
+                if (ty > 576 && ty < 592 && tx >= 29 && tx <= 31) { G.terrain.set(key, { type: T.EMPTY }); continue; }
+                if (ty >= 576 && ty < 592 && tx >= 29) {
+                    // Boss area
+                    G.terrain.set(key, { type: T.EMPTY });
+                    continue;
+                }
+                G.terrain.set(key, { type: T.BARRIER });
+                continue;
+            }
+            const zone = getDepthZone(ty);
+            const r = rng();
+            // Rocks
+            if (zone === 'rock' || zone === 'lava' || zone === 'gas' || zone === 'abyss') {
+                const rockProb = zone === 'rock' ? 0.06 : zone === 'lava' ? 0.08 : 0.05;
+                if (r < rockProb) { G.terrain.set(key, { type: T.ROCK }); continue; }
+            }
+            // Lava
+            if ((zone === 'lava' || zone === 'gas' || zone === 'abyss') && rng() < 0.04) {
+                G.terrain.set(key, { type: T.LAVA }); continue;
+            }
+            // Gas (invisible)
+            if (zone === 'gas' || zone === 'abyss') {
+                let gasProb = zone === 'gas' ? 0.08 + (ty - 380) * 0.002 : 0.3 + (ty - 465) * 0.005;
+                gasProb = Math.min(gasProb, 0.85);
+                if (rng() < gasProb) { G.terrain.set(key, { type: T.GAS }); continue; }
+            }
+            // Artifacts
+            if (ty >= 76 && rng() < 0.002) {
+                const art = ARTIFACTS[rngInt(0, 3)];
+                G.terrain.set(key, { type: T.ARTIFACT, artifact: art });
+                continue;
+            }
+            // Minerals
+            let placed = false;
+            for (let i = MINERALS.length - 1; i >= 0; i--) {
+                const m = MINERALS[i];
+                if (ty >= m.minDepth) {
+                    // Rarer minerals deeper — adjust prob based on depth
+                    let p = m.prob;
+                    if (ty > m.minDepth + 50) p *= 1.3;
+                    if (rng() < p) {
+                        G.terrain.set(key, { type: T.MINERAL, mineral: m });
+                        placed = true;
+                        break;
+                    }
+                }
+            }
+            if (!placed) {
+                G.terrain.set(key, { type: T.DIRT });
+            }
+        }
+    }
+    seed = savedSeed;
+}
+
+function getTile(tx, ty) {
+    if (tx < 0 || tx >= MAP_W) return { type: T.BARRIER };
+    if (ty < 0) return { type: T.EMPTY };
+    if (ty >= MAP_D) return { type: T.BARRIER };
+    const chunk = Math.floor(ty / 50);
+    if (!G.generatedChunks.has(chunk)) generateChunk(chunk);
+    const key = `${tx},${ty}`;
+    if (G.dugTiles.has(key)) return { type: T.EMPTY };
+    return G.terrain.get(key) || { type: T.DIRT };
+}
+
+function isSolid(tx, ty) {
+    const t = getTile(tx, ty);
+    return t.type !== T.EMPTY;
+}
+
+// ── Input Handling ──
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.key.toLowerCase()] = true; if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase()) || ['w','a','s','d','f','r','x','c','q','m'].includes(e.key.toLowerCase())) e.preventDefault(); });
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+// Mobile d-pad
+const mobileDir = { up: false, down: false, left: false, right: false };
+let isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+
+document.querySelectorAll('.dpad-btn').forEach(btn => {
+    const dir = btn.dataset.dir;
+    btn.addEventListener('touchstart', e => { e.preventDefault(); mobileDir[dir] = true; });
+    btn.addEventListener('touchend', e => { e.preventDefault(); mobileDir[dir] = false; });
+    btn.addEventListener('touchcancel', e => { mobileDir[dir] = false; });
+});
+
+document.querySelectorAll('.mob-btn').forEach(btn => {
+    btn.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const item = btn.dataset.item;
+        if (item === 'fuel') useItem('fuelTank');
+        else if (item === 'nano') useItem('nanobots');
+        else if (item === 'dyna') useItem('dynamite');
+        else if (item === 'c4') useItem('plastic');
+        else if (item === 'qtp') useItem('quantumTP');
+        else if (item === 'mtt') useItem('matterTX');
+    });
+});
+
+function inputUp() { return keys['w'] || keys['arrowup'] || mobileDir.up; }
+function inputDown() { return keys['s'] || keys['arrowdown'] || mobileDir.down; }
+function inputLeft() { return keys['a'] || keys['arrowleft'] || mobileDir.left; }
+function inputRight() { return keys['d'] || keys['arrowright'] || mobileDir.right; }
+// ═══════════════════════════════════════════════
+// Physics, Movement, Drilling, and Item Usage
+// ═══════════════════════════════════════════════
+
+function getCargoWeight() {
+    let w = 0;
+    for (const m of G.cargo) w += m.weight;
+    return w;
+}
+
+function getCargoVolume() {
+    return G.cargo.length; // simplified: 1 mineral = 1 unit
+}
+
+function getDrillSpeed() { return UPGRADES.drill[G.upgrades.drill].speed; }
+function getEnginePower() { return UPGRADES.engine[G.upgrades.engine].power; }
+function getMaxFuel() { return UPGRADES.fuelTank[G.upgrades.fuelTank].capacity; }
+function getMaxHull() { return UPGRADES.hull[G.upgrades.hull].hp; }
+function getMaxCargo() { return UPGRADES.cargo[G.upgrades.cargo].capacity; }
+function getRadiatorEff() { return UPGRADES.radiator[G.upgrades.radiator].eff; }
+
+function updatePod(dt) {
+    if (G.phase !== 'play' && G.phase !== 'boss') return;
+    const pod = G.pod;
+    const tileX = Math.floor(pod.x / TILE);
+    const tileY = Math.floor((pod.y + TILE - 1) / TILE); // feet tile
+    const belowTile = getTile(tileX, tileY + 1);
+    const underTile = getTile(tileX, tileY);
+
+    // Check ground
+    const feetWorldY = pod.y + TILE;
+    const tileBelowY = Math.floor(feetWorldY / TILE);
+    G.onGround = isSolid(tileX, tileBelowY) && pod.vy >= 0;
+
+    // Also check if pod is inside a solid tile (snap up)
+    if (isSolid(tileX, Math.floor(pod.y / TILE)) && !G.drilling) {
+        // Push up
+        pod.y = Math.floor(pod.y / TILE) * TILE - TILE;
+        pod.vy = 0;
+        G.onGround = true;
+    }
+
+    // ── Drilling ──
+    if (G.drilling) {
+        G.drillProgress += getDrillSpeed() * dt * 3;
+        if (G.drillProgress >= 1) {
+            completeDrill();
+            G.drilling = false;
+            G.drillProgress = 0;
+        }
+        // Consume fuel while drilling
+        G.fuel -= FUEL_RATE * dt;
+        spawnDrillParticles();
+        return; // No other movement while drilling
+    }
+
+    // ── Input-based movement ──
+    const enginePow = getEnginePower();
+    const weightPenalty = Math.max(0.3, 1 - getCargoWeight() / 1000);
+    const flySpeed = 250 * enginePow * weightPenalty;
+    const moveSpeed = 180 * enginePow;
+    let moving = false;
+
+    // Fly up
+    if (inputUp()) {
+        pod.vy = -flySpeed;
+        G.fuel -= FUEL_RATE * FUEL_FLY_MULT * dt;
+        moving = true;
+        G.onGround = false;
+    }
+
+    // Drill down
+    if (inputDown() && G.onGround) {
+        const targetTy = tileBelowY;
+        const targetTx = tileX;
+        const tile = getTile(targetTx, targetTy);
+        if (tile.type !== T.EMPTY && tile.type !== T.BARRIER) {
+            startDrill(targetTx, targetTy, 'down');
+            moving = true;
+        } else if (tile.type === T.EMPTY) {
+            // Fall into empty space below
+            pod.vy = 50;
+            G.onGround = false;
+        }
+    }
+
+    // Drill left
+    if (inputLeft()) {
+        if (G.onGround) {
+            const targetTx = tileX - 1;
+            const targetTy = Math.floor(pod.y / TILE);
+            const tile = getTile(targetTx, targetTy);
+            if (tile.type !== T.EMPTY && tile.type !== T.BARRIER && targetTx >= 0) {
+                startDrill(targetTx, targetTy, 'left');
+                moving = true;
+            } else if (tile.type === T.EMPTY) {
+                pod.x -= moveSpeed * dt;
+                G.fuel -= FUEL_RATE * dt;
+                moving = true;
+            }
+        } else {
+            pod.x -= moveSpeed * 0.7 * dt;
+            G.fuel -= FUEL_RATE * 0.5 * dt;
+            moving = true;
+        }
+    }
+
+    // Drill right
+    if (inputRight()) {
+        if (G.onGround) {
+            const targetTx = tileX + 1;
+            const targetTy = Math.floor(pod.y / TILE);
+            const tile = getTile(targetTx, targetTy);
+            if (tile.type !== T.EMPTY && tile.type !== T.BARRIER && targetTx < MAP_W) {
+                startDrill(targetTx, targetTy, 'right');
+                moving = true;
+            } else if (tile.type === T.EMPTY) {
+                pod.x += moveSpeed * dt;
+                G.fuel -= FUEL_RATE * dt;
+                moving = true;
+            }
+        } else {
+            pod.x += moveSpeed * 0.7 * dt;
+            G.fuel -= FUEL_RATE * 0.5 * dt;
+            moving = true;
+        }
+    }
+
+    // ── Gravity ──
+    if (!G.onGround && !inputUp()) {
+        pod.vy += GRAVITY * dt;
+        pod.vy = Math.min(pod.vy, MAX_FALL_V);
+    }
+
+    // ── Apply velocity ──
+    pod.x += pod.vx * dt;
+    pod.y += pod.vy * dt;
+
+    // ── Collision resolution ──
+    // Floor collision
+    const newTileBelow = Math.floor((pod.y + TILE) / TILE);
+    if (isSolid(tileX, newTileBelow) && pod.vy > 0) {
+        // Fall damage check
+        if (pod.vy > 100) {
+            const fallDmg = calcFallDamage(pod.vy);
+            if (fallDmg > 0) {
+                takeDamage(fallDmg, 'fall');
+                G.screenShake = Math.min(fallDmg * 2, 15);
+                spawnImpactParticles();
+            }
+        }
+        pod.y = newTileBelow * TILE - TILE;
+        pod.vy = 0;
+        G.onGround = true;
+    }
+
+    // Wall collision
+    const headTx = Math.floor(pod.x / TILE);
+    const headTy = Math.floor(pod.y / TILE);
+    if (headTx < 0) { pod.x = 0; pod.vx = 0; }
+    if (headTx >= MAP_W) { pod.x = (MAP_W - 1) * TILE; pod.vx = 0; }
+    if (isSolid(headTx + 1, headTy) && pod.x > headTx * TILE + TILE * 0.5) {
+        pod.x = headTx * TILE;
+    }
+
+    // Ceiling collision
+    if (isSolid(headTx, headTy) && pod.vy < 0 && headTy >= 0) {
+        pod.y = (headTy + 1) * TILE;
+        pod.vy = 0;
+    }
+
+    // Dampen horizontal velocity
+    if (!inputLeft() && !inputRight()) {
+        pod.vx *= 0.85;
+    }
+
+    // ── Track depth ──
+    const depth = Math.floor(pod.y / TILE);
+    if (depth > G.deepest) G.deepest = depth;
+
+    // ── Check transmissions ──
+    checkTransmissions(depth);
+
+    // ── Fuel check ──
+    if (G.fuel <= 0) {
+        G.fuel = 0;
+        die('Fuel Empty');
+    }
+
+    // ── Surface detection (y < 0) ──
+    if (pod.y < -TILE * 3) {
+        // Above surface — free flight
+    }
+
+    // Boss area
+    if (depth >= 577 && tileX >= 28) {
+        if (!G.inBossArea && G.bossPhase === 0) {
+            enterBoss();
+        }
+    }
+}
+
+function calcFallDamage(vy) {
+    const ft = vy / TILE * FT_PER_TILE; // rough conversion
+    if (ft < 100) return 0;
+    if (ft < 150) return 3;
+    if (ft < 250) return 4;
+    if (ft < 400) return 5;
+    if (ft < 600) return 6;
+    if (ft < 900) return 7;
+    return 8;
+}
+
+function startDrill(tx, ty, dir) {
+    const tile = getTile(tx, ty);
+    if (tile.type === T.ROCK) {
+        // Can't drill rocks
+        spawnTextParticle(G.pod.x, G.pod.y - 10, "CAN'T DRILL!", '#f44');
+        return;
+    }
+    if (tile.type === T.BARRIER) return;
+    G.drilling = true;
+    G.drillDir = dir;
+    G.drillProgress = 0;
+    G.drillTarget = { tx, ty, tile };
+}
+
+function completeDrill() {
+    const { tx, ty, tile } = G.drillTarget;
+    const key = `${tx},${ty}`;
+
+    // Handle tile type
+    if (tile.type === T.MINERAL) {
+        const m = tile.mineral;
+        if (getCargoVolume() < getMaxCargo()) {
+            G.cargo.push(m);
+            G.score += m.points;
+            spawnMineralParticles(tx * TILE, ty * TILE, m.color);
+            playSound('mineral');
+        } else {
+            spawnTextParticle(tx * TILE, ty * TILE - 10, 'CARGO FULL!', '#f44');
+            playSound('full');
+        }
+    } else if (tile.type === T.ARTIFACT) {
+        const art = tile.artifact;
+        G.cash += art.value;
+        G.score += art.points;
+        spawnTextParticle(tx * TILE, ty * TILE - 10, `${art.name}! +$${art.value.toLocaleString()}`, '#ff0');
+        G.screenShake = 8;
+        playSound('artifact');
+    } else if (tile.type === T.LAVA) {
+        const eff = getRadiatorEff();
+        const baseDmg = rng() < 0.5 ? 58 : 41;
+        const dmg = Math.round(baseDmg * (1 - eff));
+        takeDamage(dmg, 'lava');
+        G.screenShake = 12;
+        spawnExplosionParticles(tx * TILE + TILE / 2, ty * TILE + TILE / 2, '#f40', 20);
+        playSound('lava');
+    } else if (tile.type === T.GAS) {
+        const depth = ty * FT_PER_TILE;
+        const eff = getRadiatorEff();
+        const dmg = Math.round(Math.abs((depth + 3000) / 15) * (1 - eff));
+        takeDamage(dmg, 'gas pocket');
+        G.screenShake = 20;
+        spawnExplosionParticles(tx * TILE + TILE / 2, ty * TILE + TILE / 2, '#0f0', 30);
+        playSound('gas');
+    } else if (tile.type === T.DIRT) {
+        G.score += 5;
+    }
+
+    // Mark as dug
+    G.dugTiles.add(key);
+
+    // Move pod into the dug tile
+    if (G.drillDir === 'down') {
+        G.pod.y = ty * TILE;
+    } else if (G.drillDir === 'left') {
+        G.pod.x = tx * TILE;
+    } else if (G.drillDir === 'right') {
+        G.pod.x = tx * TILE;
+    }
+}
+
+function takeDamage(amount, source) {
+    G.hull -= amount;
+    spawnTextParticle(G.pod.x, G.pod.y - 16, `-${amount} HP`, '#f44');
+    if (G.hull <= 0) {
+        G.hull = 0;
+        die(`Hull destroyed (${source})`);
+    }
+}
+
+function die(cause) {
+    if (G.phase === 'dead') return;
+    G.phase = 'dead';
+    document.getElementById('death-cause').textContent = cause;
+    document.getElementById('death-stats').textContent =
+        `Depth: ${Math.round(G.deepest * FT_PER_TILE)} ft | Cash: $${G.cash.toLocaleString()} | Score: ${G.score.toLocaleString()}`;
+    document.getElementById('gameover-screen').style.display = 'flex';
+    spawnExplosionParticles(G.pod.x + TILE / 2, G.pod.y + TILE / 2, '#f80', 50);
+    G.screenShake = 25;
+    playSound('explode');
+}
+
+// ── Item Usage ──
+function useItem(id) {
+    if (G.phase !== 'play' && G.phase !== 'boss') return;
+    if (G.items[id] <= 0) return;
+    const needGround = ['dynamite', 'plastic', 'quantumTP', 'matterTX'].includes(id);
+    if (needGround && !G.onGround) {
+        spawnTextParticle(G.pod.x, G.pod.y - 10, 'Need ground!', '#f44');
+        return;
+    }
+
+    G.items[id]--;
+
+    if (id === 'fuelTank') {
+        G.fuel = Math.min(G.fuel + 25, getMaxFuel());
+        spawnTextParticle(G.pod.x, G.pod.y - 10, '+25 Fuel', '#0f0');
+        playSound('fuel');
+    } else if (id === 'nanobots') {
+        G.hull = Math.min(G.hull + 30, getMaxHull());
+        spawnTextParticle(G.pod.x, G.pod.y - 10, '+30 HP', '#0f0');
+        playSound('heal');
+    } else if (id === 'dynamite') {
+        explode(1); // 3x3
+        playSound('explode');
+    } else if (id === 'plastic') {
+        explode(2); // 5x5
+        playSound('explode');
+    } else if (id === 'quantumTP') {
+        // Risky teleport near surface
+        G.pod.x = rngInt(2, MAP_W - 3) * TILE;
+        G.pod.y = -TILE * rngInt(1, 5);
+        G.pod.vy = rngRange(-200, 200);
+        playSound('teleport');
+    } else if (id === 'matterTX') {
+        // Safe teleport to fuel station
+        G.pod.x = 2 * TILE;
+        G.pod.y = -2 * TILE;
+        G.pod.vy = 0;
+        G.pod.vx = 0;
+        playSound('teleport');
+    }
+}
+
+function explode(radius) {
+    const cx = Math.floor(G.pod.x / TILE);
+    const cy = Math.floor(G.pod.y / TILE);
+    const r = radius === 1 ? 1 : 2; // 3x3 or 5x5
+    for (let dx = -r; dx <= r; dx++) {
+        for (let dy = -r; dy <= r; dy++) {
+            const tx = cx + dx, ty = cy + dy;
+            if (tx < 0 || tx >= MAP_W || ty < 0 || ty >= MAP_D) continue;
+            const tile = getTile(tx, ty);
+            if (tile.type === T.BARRIER) continue;
+            // Collect minerals in blast
+            if (tile.type === T.MINERAL && getCargoVolume() < getMaxCargo()) {
+                G.cargo.push(tile.mineral);
+                G.score += tile.mineral.points;
+            }
+            if (tile.type === T.ARTIFACT) {
+                G.cash += tile.artifact.value;
+                G.score += tile.artifact.points;
+            }
+            G.dugTiles.add(`${tx},${ty}`);
+        }
+    }
+    // Boss damage
+    if (G.phase === 'boss') {
+        const bx = Math.floor(G.bossX / TILE);
+        const by = Math.floor(G.bossY / TILE);
+        const dist = Math.abs(cx - bx) + Math.abs(cy - by);
+        if (dist <= r + 2) {
+            const dmg = radius === 2 ? (dist <= 1 ? 240 : 60) : (dist <= 1 ? 120 : 60);
+            G.bossHP -= dmg;
+            spawnTextParticle(G.bossX, G.bossY - 20, `-${dmg}`, '#ff0');
+            G.screenShake = 15;
+        }
+    }
+    spawnExplosionParticles(G.pod.x + TILE / 2, G.pod.y + TILE / 2, '#f80', radius === 2 ? 40 : 25);
+    G.screenShake = radius === 2 ? 20 : 12;
+}
+
+// Item key bindings
+window.addEventListener('keydown', e => {
+    if (G.phase === 'shop' && e.key.toLowerCase() === 'escape') { closeShop(); return; }
+    if (G.phase === 'transmission' && (e.key === ' ' || e.key === 'Enter' || e.key === 'Escape')) { dismissTransmission(); return; }
+    if (G.phase !== 'play' && G.phase !== 'boss') return;
+    switch(e.key.toLowerCase()) {
+        case 'f': useItem('fuelTank'); break;
+        case 'r': useItem('nanobots'); break;
+        case 'x': useItem('dynamite'); break;
+        case 'c': useItem('plastic'); break;
+        case 'q': useItem('quantumTP'); break;
+        case 'm': useItem('matterTX'); break;
+    }
+});
+
+// ── Transmissions ──
+let txQueue = [];
+function checkTransmissions(depth) {
+    for (const tx of TRANSMISSIONS) {
+        if (depth >= tx.depthTile && !G.txSeen.has(tx.depthTile)) {
+            G.txSeen.add(tx.depthTile);
+            txQueue.push(tx);
+        }
+    }
+    if (txQueue.length > 0 && G.phase === 'play') {
+        showTransmission(txQueue.shift());
+    }
+}
+
+function showTransmission(tx) {
+    G.phase = 'transmission';
+    document.getElementById('tx-sender').textContent = `FROM: ${tx.sender}`;
+    document.getElementById('tx-msg').textContent = tx.msg;
+    document.getElementById('transmission').style.display = 'block';
+    if (tx.reward > 0) {
+        G.cash += tx.reward;
+        spawnTextParticle(G.pod.x, G.pod.y - 20, `+$${tx.reward.toLocaleString()}`, '#ff0');
+    }
+    playSound('radio');
+}
+
+function dismissTransmission() {
+    document.getElementById('transmission').style.display = 'none';
+    G.phase = G.inBossArea ? 'boss' : 'play';
+    if (txQueue.length > 0) {
+        setTimeout(() => showTransmission(txQueue.shift()), 500);
+    }
+}
+
+// ── Marsquakes ──
+function tryMarsquake() {
+    if (G.score < 100000) return;
+    if (rng() < 0.05) {
+        // Reshuffle terrain
+        G.terrain.clear();
+        G.dugTiles.clear();
+        G.generatedChunks.clear();
+        G.screenShake = 30;
+        spawnTextParticle(G.pod.x, G.pod.y - 20, '⚠ MARSQUAKE! ⚠', '#f00');
+        playSound('quake');
+    }
+}
+// ═══════════════════════════════════════════════
+// Shops, Economy, and Save System
+// ═══════════════════════════════════════════════
+
+// ── Surface Buildings ──
+const BUILDINGS = [
+    { name: 'FUEL STATION', x: 1, w: 4, color: '#0a8', icon: '⛽', action: 'fuel' },
+    { name: 'MINERAL PROCESSOR', x: 6, w: 5, color: '#cc0', icon: '💎', action: 'sell' },
+    { name: 'UPGRADE SHOP', x: 12, w: 5, color: '#f60', icon: '🔧', action: 'upgrades' },
+    { name: 'ITEM SHOP', x: 18, w: 5, color: '#a0f', icon: '🎒', action: 'items' },
+    { name: 'SAVE STATION', x: 24, w: 4, color: '#06f', icon: '💾', action: 'save' },
+];
+
+// Portal
+const PORTAL_X = 29;
+
+function checkShopEntry() {
+    if (G.phase !== 'play') return;
+    if (G.pod.y > 0) return; // underground
+    const px = Math.floor(G.pod.x / TILE);
+
+    // Check portal
+    if (px >= PORTAL_X && px <= PORTAL_X + 1 && G.pod.y <= 0 && G.pod.y >= -2 * TILE) {
+        enterPortal();
+        return;
+    }
+
+    for (const b of BUILDINGS) {
+        if (px >= b.x && px < b.x + b.w && G.pod.y >= -2 * TILE) {
+            if (inputDown() || (isMobile && G.onGround)) {
+                openShop(b.action);
+                return;
+            }
+        }
+    }
+}
+
+function openShop(type) {
+    G.phase = 'shop';
+    const overlay = document.getElementById('shop-overlay');
+    const title = document.getElementById('shop-title');
+    const content = document.getElementById('shop-content');
+    overlay.style.display = 'flex';
+    content.innerHTML = '';
+
+    tryMarsquake();
+
+    switch(type) {
+        case 'fuel': openFuelShop(title, content); break;
+        case 'sell': openSellShop(title, content); break;
+        case 'upgrades': openUpgradeShop(title, content); break;
+        case 'items': openItemShop(title, content); break;
+        case 'save': saveGame(title, content); break;
+    }
+}
+
+function openFuelShop(title, content) {
+    title.textContent = '⛽ PROPELLENT VENDOR 12000';
+    const needed = Math.ceil(getMaxFuel() - G.fuel);
+    const costs = [5, 10, 25, 50];
+    costs.forEach(amt => {
+        const liters = Math.min(amt, getMaxFuel() - G.fuel);
+        if (liters <= 0) return;
+        const div = document.createElement('div');
+        div.className = 'shop-item';
+        div.innerHTML = `<span>+${Math.floor(liters)}L fuel</span><span class="price">$${amt}</span>`;
+        div.onclick = () => {
+            if (G.cash >= amt) {
+                G.cash -= amt;
+                G.fuel = Math.min(G.fuel + liters, getMaxFuel());
+                playSound('fuel');
+                openShop('fuel'); // refresh
+            }
+        };
+        content.appendChild(div);
+    });
+    // Fill tank
+    const fillCost = Math.ceil(getMaxFuel() - G.fuel);
+    if (fillCost > 0) {
+        const div = document.createElement('div');
+        div.className = 'shop-item';
+        div.innerHTML = `<span>FILL TANK (${Math.ceil(getMaxFuel() - G.fuel)}L)</span><span class="price">$${fillCost}</span>`;
+        div.onclick = () => {
+            if (G.cash >= fillCost) {
+                G.cash -= fillCost;
+                G.fuel = getMaxFuel();
+                playSound('fuel');
+                openShop('fuel');
+            }
+        };
+        content.appendChild(div);
+    }
+    addCashDisplay(content);
+}
+
+function openSellShop(title, content) {
+    title.textContent = '💎 MINERAL PROCESSOR 3000';
+    if (G.cargo.length === 0) {
+        content.innerHTML = '<p style="color:#888;text-align:center;padding:20px">Cargo is empty. Go dig some minerals!</p>';
+        return;
+    }
+    let total = 0;
+    // Group by mineral type
+    const counts = {};
+    G.cargo.forEach(m => {
+        if (!counts[m.id]) counts[m.id] = { mineral: m, count: 0 };
+        counts[m.id].count++;
+        total += m.value;
+    });
+    Object.values(counts).forEach(({ mineral: m, count }) => {
+        const div = document.createElement('div');
+        div.className = 'shop-item';
+        div.innerHTML = `<span style="color:${m.color}">■ ${m.name} ×${count}</span><span class="price">$${(m.value * count).toLocaleString()}</span>`;
+        content.appendChild(div);
+    });
+    const sellBtn = document.createElement('div');
+    sellBtn.className = 'shop-item';
+    sellBtn.style.background = 'rgba(0,255,0,.1)';
+    sellBtn.style.borderColor = '#0f0';
+    sellBtn.innerHTML = `<span style="color:#0f0;font-weight:bold">SELL ALL</span><span class="price" style="color:#0f0">+$${total.toLocaleString()}</span>`;
+    sellBtn.onclick = () => {
+        G.cash += total;
+        G.cargo = [];
+        playSound('sell');
+        spawnTextParticle(G.pod.x, G.pod.y - 20, `+$${total.toLocaleString()}`, '#0f0');
+        openShop('sell');
+    };
+    content.appendChild(sellBtn);
+    addCashDisplay(content);
+}
+
+function openUpgradeShop(title, content) {
+    title.textContent = '🔧 AUTOBUY 2000';
+    const cats = ['drill', 'hull', 'engine', 'fuelTank', 'radiator', 'cargo'];
+    const catNames = { drill: 'Drill', hull: 'Hull', engine: 'Engine', fuelTank: 'Fuel Tank', radiator: 'Radiator', cargo: 'Cargo Bay' };
+    cats.forEach(cat => {
+        const current = G.upgrades[cat];
+        const tiers = UPGRADES[cat];
+        // Header
+        const hdr = document.createElement('div');
+        hdr.style.cssText = 'color:#f80;padding:8px 4px 2px;font-size:12px;font-weight:bold;margin-top:8px;border-bottom:1px solid #333';
+        hdr.textContent = `${catNames[cat]} — Current: ${tiers[current].name}`;
+        content.appendChild(hdr);
+
+        for (let i = 0; i < tiers.length; i++) {
+            const tier = tiers[i];
+            const div = document.createElement('div');
+            div.className = 'shop-item' + (i <= current ? ' owned' : '');
+            let stats = '';
+            if (cat === 'drill') stats = `Speed: ${tier.speed}x`;
+            else if (cat === 'hull') stats = `HP: ${tier.hp}`;
+            else if (cat === 'engine') stats = `Power: ${tier.power}x`;
+            else if (cat === 'fuelTank') stats = `${tier.capacity}L`;
+            else if (cat === 'radiator') stats = `${Math.round(tier.eff * 100)}% reduction`;
+            else if (cat === 'cargo') stats = `${tier.capacity} slots`;
+
+            if (i <= current) {
+                div.innerHTML = `<span>${tier.name} — ${stats}</span><span class="owned-tag">OWNED</span>`;
+            } else if (i === current + 1) {
+                div.innerHTML = `<span>${tier.name} — ${stats}</span><span class="price">$${tier.cost.toLocaleString()}</span>`;
+                div.onclick = () => {
+                    if (G.cash >= tier.cost) {
+                        G.cash -= tier.cost;
+                        G.upgrades[cat] = i;
+                        // Hull and fuel tank purchases restore to max
+                        if (cat === 'hull') { G.maxHull = getMaxHull(); G.hull = G.maxHull; }
+                        if (cat === 'fuelTank') { G.maxFuel = getMaxFuel(); G.fuel = G.maxFuel; }
+                        G.maxCargo = getMaxCargo();
+                        playSound('upgrade');
+                        openShop('upgrades');
+                    }
+                };
+            } else {
+                div.innerHTML = `<span style="opacity:.4">${tier.name} — ${stats}</span><span class="price" style="opacity:.4">$${tier.cost.toLocaleString()}</span>`;
+                div.style.cursor = 'default';
+                div.style.opacity = '0.3';
+            }
+            content.appendChild(div);
+        }
+    });
+    addCashDisplay(content);
+}
+
+function openItemShop(title, content) {
+    title.textContent = '🎒 EMENDATION STATION 3500';
+    SHOP_ITEMS.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'shop-item';
+        div.innerHTML = `<span>${item.name} <small style="color:#888">(${item.desc}) [${item.key.toUpperCase()}]</small> ×${G.items[item.id]}</span><span class="price">$${item.cost.toLocaleString()}</span>`;
+        div.onclick = () => {
+            if (G.cash >= item.cost) {
+                G.cash -= item.cost;
+                G.items[item.id]++;
+                playSound('buy');
+                openShop('items');
+            }
+        };
+        content.appendChild(div);
+    });
+    // Repair hull
+    const repairCost = Math.ceil((getMaxHull() - G.hull) * 15);
+    if (repairCost > 0) {
+        const div = document.createElement('div');
+        div.className = 'shop-item';
+        div.innerHTML = `<span>Repair Hull (+${getMaxHull() - G.hull} HP)</span><span class="price">$${repairCost.toLocaleString()}</span>`;
+        div.onclick = () => {
+            if (G.cash >= repairCost) {
+                G.cash -= repairCost;
+                G.hull = getMaxHull();
+                playSound('heal');
+                openShop('items');
+            }
+        };
+        content.appendChild(div);
+    }
+    addCashDisplay(content);
+}
+
+function addCashDisplay(content) {
+    const div = document.createElement('div');
+    div.style.cssText = 'text-align:center;padding:12px;color:#ff0;font-size:16px;font-weight:bold';
+    div.textContent = `Your Cash: $${G.cash.toLocaleString()}`;
+    content.appendChild(div);
+}
+
+function saveGame(title, content) {
+    title.textContent = '💾 QUANTUM PARTICLE STATE ANALYZER 6000';
+    const saveData = {
+        pod: G.pod, fuel: G.fuel, hull: G.hull, cash: G.cash, score: G.score,
+        cargo: G.cargo, upgrades: G.upgrades, items: G.items,
+        dugTiles: [...G.dugTiles], txSeen: [...G.txSeen],
+        deepest: G.deepest, satanHeads: G.satanHeads,
+        terrain: Object.fromEntries(G.terrain),
+        generatedChunks: [...G.generatedChunks],
+    };
+    try {
+        localStorage.setItem('marsBelow_save', JSON.stringify(saveData));
+        content.innerHTML = '<p style="color:#0f0;text-align:center;padding:30px;font-size:16px">✅ Game Saved!</p><p style="color:#888;text-align:center">Your progress is safe.</p>';
+        playSound('save');
+    } catch(e) {
+        content.innerHTML = '<p style="color:#f44;text-align:center;padding:30px">❌ Save failed (storage full?)</p>';
+    }
+}
+
+function loadSave() {
+    try {
+        const data = JSON.parse(localStorage.getItem('marsBelow_save'));
+        if (!data) { newGame(); return; }
+        initGameState();
+        G.pod = data.pod;
+        G.fuel = data.fuel;
+        G.hull = data.hull;
+        G.cash = data.cash;
+        G.score = data.score;
+        G.cargo = data.cargo || [];
+        G.upgrades = data.upgrades;
+        G.items = data.items;
+        G.dugTiles = new Set(data.dugTiles);
+        G.txSeen = new Set(data.txSeen);
+        G.deepest = data.deepest;
+        G.satanHeads = data.satanHeads || 0;
+        if (data.terrain) G.terrain = new Map(Object.entries(data.terrain));
+        if (data.generatedChunks) G.generatedChunks = new Set(data.generatedChunks);
+        G.maxFuel = getMaxFuel();
+        G.maxHull = getMaxHull();
+        G.maxCargo = getMaxCargo();
+        G.phase = 'play';
+        hideAllOverlays();
+        showHUD();
+    } catch(e) {
+        newGame();
+    }
+}
+
+function closeShop() {
+    document.getElementById('shop-overlay').style.display = 'none';
+    G.phase = 'play';
+    // Auto-save when leaving shops
+    try {
+        const saveData = {
+            pod: G.pod, fuel: G.fuel, hull: G.hull, cash: G.cash, score: G.score,
+            cargo: G.cargo, upgrades: G.upgrades, items: G.items,
+            dugTiles: [...G.dugTiles].slice(-5000), txSeen: [...G.txSeen],
+            deepest: G.deepest, satanHeads: G.satanHeads,
+        };
+        localStorage.setItem('marsBelow_save', JSON.stringify(saveData));
+    } catch(e) {}
+}
+// ═══════════════════════════════════════════════
+// Boss Fight — Mr. Natas
+// ═══════════════════════════════════════════════
+
+function enterBoss() {
+    G.inBossArea = true;
+    G.bossPhase = 1;
+    G.bossHP = 1000 * (G.satanHeads + 1);
+    G.bossMaxHP = G.bossHP;
+    G.bossX = 30 * TILE;
+    G.bossY = 580 * TILE;
+    G.bossAttackTimer = 3;
+    G.bossAttack = null;
+    G.bossProjectiles = [];
+    G.phase = 'transmission';
+    txQueue.push({
+        depthTile: -1, sender: 'Mr. Natas',
+        msg: "HAHAHA!! YOU FOOL!!! I told you to turn back... now I have no choice but to kill you. You've served my factories well, but I think I'll take my machine, my money, and your pathetic life now. SEE YOU IN HELL!!!",
+        reward: 0
+    });
+    showTransmission(txQueue.shift());
+}
+
+function updateBoss(dt) {
+    if (G.phase !== 'boss' || G.bossPhase === 0) return;
+
+    // Boss AI
+    G.bossAttackTimer -= dt;
+    if (G.bossAttackTimer <= 0) {
+        const r = rng();
+        if (G.bossPhase === 1) {
+            if (r < 0.5) bossLaser();
+            else bossSwing();
+        } else {
+            if (r < 0.4) bossClaw();
+            else if (r < 0.7) bossFireball();
+            else bossClaw();
+        }
+        G.bossAttackTimer = G.bossPhase === 1 ? rngRange(2, 4) : rngRange(1.5, 3);
+    }
+
+    // Update laser
+    if (G.bossAttack === 'laser') {
+        G.bossLaserAngle += dt * 1.5;
+        if (G.bossLaserAngle > Math.PI) {
+            G.bossAttack = null;
+        }
+        // Check laser hit on player
+        const lx = G.bossX, ly = G.bossY - TILE;
+        const angle = G.bossLaserAngle - Math.PI / 2;
+        const dx = Math.cos(angle), dy = Math.sin(angle);
+        const px = G.pod.x + TILE / 2, py = G.pod.y + TILE / 2;
+        const dist = Math.abs(dy * (px - lx) - dx * (py - ly));
+        if (dist < TILE * 1.5) {
+            const along = dx * (px - lx) + dy * (py - ly);
+            if (along > 0 && along < TILE * 12) {
+                takeDamage(Math.round(8 * (G.satanHeads + 1) * dt * 10), 'laser');
+                G.pod.vx += dx * 200;
+                G.pod.vy += dy * 200;
+            }
+        }
+    }
+
+    // Update projectiles
+    for (let i = G.bossProjectiles.length - 1; i >= 0; i--) {
+        const p = G.bossProjectiles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        p.vy += 100 * dt; // gravity on fireball
+        // Bounce off walls
+        if (p.x < 28 * TILE || p.x > 32 * TILE) p.vx *= -1;
+        if (p.y > 590 * TILE) { p.vy *= -0.8; p.y = 590 * TILE; }
+        // Hit player
+        const dx = p.x - (G.pod.x + TILE / 2), dy = p.y - (G.pod.y + TILE / 2);
+        if (Math.abs(dx) < TILE && Math.abs(dy) < TILE) {
+            takeDamage(Math.round(5 * (G.satanHeads + 1)), 'fireball');
+        }
+        // Lifetime
+        p.life -= dt;
+        if (p.life <= 0) G.bossProjectiles.splice(i, 1);
+    }
+
+    // Contact damage
+    const dx = Math.abs(G.pod.x - G.bossX), dy = Math.abs(G.pod.y - G.bossY);
+    if (dx < TILE * 1.5 && dy < TILE * 2) {
+        takeDamage(Math.round(3 * (G.satanHeads + 1) * dt * 10), 'contact');
+        G.pod.vx += (G.pod.x < G.bossX ? -1 : 1) * 300;
+        G.pod.vy -= 150;
+    }
+
+    // Boss death check
+    if (G.bossHP <= 0) {
+        if (G.bossPhase === 1) {
+            // Transition to phase 2
+            G.bossPhase = 2;
+            G.bossHP = 2000 * (G.satanHeads + 1);
+            G.bossMaxHP = G.bossHP;
+            G.bossAttackTimer = 3;
+            G.bossAttack = null;
+            G.bossProjectiles = [];
+            spawnExplosionParticles(G.bossX, G.bossY, '#f0f', 40);
+            G.screenShake = 25;
+            txQueue.push({
+                depthTile: -2, sender: 'Mr. Natas',
+                msg: "MWAHAHAHA! Imbecile!! You really think you can defeat me? I am the master of all EVIL! BEHOLD MY TRUE FORM!!!",
+                reward: 0
+            });
+            showTransmission(txQueue.shift());
+        } else {
+            // Victory!
+            victory();
+        }
+    }
+}
+
+function bossLaser() {
+    G.bossAttack = 'laser';
+    G.bossLaserAngle = 0;
+}
+
+function bossSwing() {
+    G.bossAttack = 'swing';
+    // Instant swing damage in area
+    const dx = G.pod.x - G.bossX, dy = G.pod.y - G.bossY;
+    if (Math.abs(dx) < TILE * 3 && Math.abs(dy) < TILE * 3) {
+        takeDamage(Math.round(12 * (G.satanHeads + 1)), 'staff');
+        G.pod.vx += (dx > 0 ? 1 : -1) * 500;
+        G.pod.vy -= 300;
+        G.screenShake = 10;
+    }
+    setTimeout(() => { if (G.bossAttack === 'swing') G.bossAttack = null; }, 500);
+}
+
+function bossClaw() {
+    G.bossAttack = 'claw';
+    const dx = G.pod.x - G.bossX, dy = G.pod.y - G.bossY;
+    if (Math.abs(dx) < TILE * 4 && Math.abs(dy) < TILE * 3) {
+        takeDamage(Math.round(15 * (G.satanHeads + 1)), 'claw');
+        G.pod.vx += (dx > 0 ? 1 : -1) * 400;
+        G.pod.vy -= 200;
+        G.screenShake = 12;
+    }
+    setTimeout(() => { if (G.bossAttack === 'claw') G.bossAttack = null; }, 400);
+}
+
+function bossFireball() {
+    G.bossAttack = 'fireball';
+    const dx = G.pod.x - G.bossX, dy = G.pod.y - G.bossY;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    G.bossProjectiles.push({
+        x: G.bossX, y: G.bossY - TILE,
+        vx: (dx / dist) * 200, vy: (dy / dist) * 200 - 50,
+        life: 6
+    });
+    setTimeout(() => { if (G.bossAttack === 'fireball') G.bossAttack = null; }, 300);
+}
+
+function victory() {
+    G.phase = 'victory';
+    G.cash += 28500000;
+    G.satanHeads++;
+    G.bossPhase = 0;
+    G.inBossArea = false;
+    document.getElementById('victory-stats').textContent =
+        `Score: ${(G.cash + G.score).toLocaleString()} | Cash: $${G.cash.toLocaleString()} | Time: ${formatTime(G.t)} | Satan's Heads: ${G.satanHeads}`;
+    document.getElementById('victory-screen').style.display = 'flex';
+    G.screenShake = 30;
+    spawnExplosionParticles(G.bossX, G.bossY, '#ff0', 80);
+    playSound('victory');
+}
+
+function formatTime(s) {
+    const m = Math.floor(s / 60), sec = Math.floor(s % 60);
+    return `${m}m ${sec}s`;
+}
+// ═══════════════════════════════════════════════
+// Rendering, Particles, Audio, and Main Loop
+// ═══════════════════════════════════════════════
+
+// ── Particles ──
+function spawnParticle(x, y, vx, vy, color, life, size) {
+    G.particles.push({ x, y, vx, vy, color, life, maxLife: life, size: size || 3 });
+}
+
+function spawnDrillParticles() {
+    const px = G.pod.x + TILE / 2, py = G.pod.y + TILE;
+    for (let i = 0; i < 2; i++) {
+        const ty = Math.floor(G.pod.y / TILE);
+        const col = getSoilColor(ty > 0 ? ty : 0);
+        spawnParticle(px + rngRange(-6, 6), py, rngRange(-40, 40), rngRange(-60, -10), col, rngRange(0.3, 0.7), rngRange(2, 4));
+    }
+}
+
+function spawnMineralParticles(x, y, color) {
+    for (let i = 0; i < 12; i++) {
+        spawnParticle(x + TILE / 2, y + TILE / 2, rngRange(-80, 80), rngRange(-100, -20), color, rngRange(0.5, 1), rngRange(2, 5));
+    }
+}
+
+function spawnExplosionParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        const a = rng() * Math.PI * 2, spd = rngRange(50, 250);
+        spawnParticle(x, y, Math.cos(a) * spd, Math.sin(a) * spd, color, rngRange(0.4, 1.2), rngRange(2, 6));
+    }
+}
+
+function spawnImpactParticles() {
+    const px = G.pod.x + TILE / 2, py = G.pod.y + TILE;
+    for (let i = 0; i < 8; i++) {
+        spawnParticle(px, py, rngRange(-60, 60), rngRange(-80, -20), '#a88', rngRange(0.3, 0.7), rngRange(2, 5));
+    }
+}
+
+function spawnTextParticle(x, y, text, color) {
+    G.particles.push({ x, y, vx: 0, vy: -40, color, life: 1.5, maxLife: 1.5, size: 0, text });
+}
+
+function updateParticles(dt) {
+    for (let i = G.particles.length - 1; i >= 0; i--) {
+        const p = G.particles[i];
+        p.x += p.vx * dt;
+        p.y += p.vy * dt;
+        if (!p.text) p.vy += 200 * dt; // gravity
+        p.life -= dt;
+        if (p.life <= 0) G.particles.splice(i, 1);
+    }
+}
+
+// ── Audio (Web Audio API) ──
+let audioCtx = null;
+function initAudio() {
+    if (audioCtx) return;
+    try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch(e) {}
+}
+
+function playSound(type) {
+    if (!audioCtx) return;
+    try {
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        gain.gain.setValueAtTime(0.15, now);
+
+        switch(type) {
+            case 'mineral':
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.exponentialRampToValueAtTime(1200, now + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+                break;
+            case 'sell':
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1600, now + 0.15);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc.start(now); osc.stop(now + 0.3);
+                // Second tone
+                const o2 = audioCtx.createOscillator(), g2 = audioCtx.createGain();
+                o2.connect(g2); g2.connect(audioCtx.destination);
+                g2.gain.setValueAtTime(0.12, now + 0.1);
+                o2.frequency.setValueAtTime(1200, now + 0.1);
+                g2.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                o2.start(now + 0.1); o2.stop(now + 0.35);
+                break;
+            case 'explode':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.4);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                osc.start(now); osc.stop(now + 0.5);
+                break;
+            case 'fuel':
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.15);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+                break;
+            case 'buy': case 'upgrade':
+                osc.frequency.setValueAtTime(500, now);
+                osc.frequency.exponentialRampToValueAtTime(1000, now + 0.2);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc.start(now); osc.stop(now + 0.25);
+                break;
+            case 'heal':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.3);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+                osc.start(now); osc.stop(now + 0.35);
+                break;
+            case 'lava': case 'gas':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(60, now + 0.6);
+                gain.gain.setValueAtTime(0.25, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+                osc.start(now); osc.stop(now + 0.6);
+                break;
+            case 'radio':
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(1200, now);
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+                osc.start(now); osc.stop(now + 0.15);
+                break;
+            case 'teleport':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(2000, now + 0.3);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+                osc.start(now); osc.stop(now + 0.4);
+                break;
+            case 'save':
+                osc.frequency.setValueAtTime(600, now);
+                osc.frequency.setValueAtTime(800, now + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+                osc.start(now); osc.stop(now + 0.25);
+                break;
+            case 'quake':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(60, now);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1);
+                osc.start(now); osc.stop(now + 1);
+                break;
+            case 'full':
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.setValueAtTime(200, now + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+                break;
+            case 'victory':
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.setValueAtTime(600, now + 0.15);
+                osc.frequency.setValueAtTime(800, now + 0.3);
+                osc.frequency.setValueAtTime(1200, now + 0.45);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.8);
+                osc.start(now); osc.stop(now + 0.8);
+                break;
+            case 'artifact':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, now);
+                osc.frequency.exponentialRampToValueAtTime(1600, now + 0.2);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+                osc.start(now); osc.stop(now + 0.5);
+                break;
+            default:
+                osc.frequency.setValueAtTime(440, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                osc.start(now); osc.stop(now + 0.1);
+        }
+    } catch(e) {}
+}
+
+// Fuel warning beep
+let fuelBeepTimer = 0;
+function updateFuelWarning(dt) {
+    if (G.phase !== 'play' && G.phase !== 'boss') return;
+    const pct = G.fuel / getMaxFuel();
+    if (pct < 0.25 && pct > 0) {
+        const interval = pct < 0.1 ? 0.3 : 0.8;
+        fuelBeepTimer += dt;
+        if (fuelBeepTimer >= interval) {
+            fuelBeepTimer = 0;
+            if (audioCtx) {
+                const now = audioCtx.currentTime;
+                const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+                o.connect(g); g.connect(audioCtx.destination);
+                o.frequency.setValueAtTime(pct < 0.1 ? 1200 : 800, now);
+                g.gain.setValueAtTime(0.1, now);
+                g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                o.start(now); o.stop(now + 0.1);
+            }
+        }
+    }
+}
+
+// ── Camera ──
+function updateCamera() {
+    const tx = G.pod.x + TILE / 2 - W / 2;
+    const ty = G.pod.y + TILE / 2 - H / 2;
+    G.camX += (tx - G.camX) * 0.1;
+    G.camY += (ty - G.camY) * 0.1;
+}
+
+// ── Drawing ──
+function draw() {
+    ctx.fillStyle = '#0a0505';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.save();
+
+    // Screen shake
+    let shakeX = 0, shakeY = 0;
+    if (G.screenShake > 0) {
+        shakeX = (Math.random() - 0.5) * G.screenShake;
+        shakeY = (Math.random() - 0.5) * G.screenShake;
+        G.screenShake *= 0.9;
+        if (G.screenShake < 0.5) G.screenShake = 0;
+    }
+
+    ctx.translate(-G.camX + shakeX, -G.camY + shakeY);
+
+    // ── Sky ──
+    const skyY = -G.camY;
+    if (G.camY < 0) {
+        const grad = ctx.createLinearGradient(0, -200 - G.camY, 0, -G.camY);
+        grad.addColorStop(0, '#000020');
+        grad.addColorStop(1, '#1a0800');
+        ctx.fillStyle = grad;
+        ctx.fillRect(G.camX, G.camY, W, Math.min(-G.camY, H));
+    }
+
+    // ── Mars surface line ──
+    ctx.fillStyle = '#8B4513';
+    ctx.fillRect(G.camX, -TILE * 0.3, W, TILE * 0.3);
+
+    // ── Draw Buildings ──
+    if (G.camY < TILE * 3) {
+        drawBuildings();
+    }
+
+    // ── Draw Portal ──
+    if (G.camY < TILE * 3) {
+        drawPortal();
+    }
+
+    // ── Draw Terrain ──
+    const startTx = Math.max(0, Math.floor(G.camX / TILE) - 1);
+    const endTx = Math.min(MAP_W, Math.ceil((G.camX + W) / TILE) + 1);
+    const startTy = Math.max(0, Math.floor(G.camY / TILE) - 1);
+    const endTy = Math.min(MAP_D, Math.ceil((G.camY + H) / TILE) + 1);
+
+    for (let ty = startTy; ty < endTy; ty++) {
+        for (let tx = startTx; tx < endTx; tx++) {
+            const tile = getTile(tx, ty);
+            const px = tx * TILE, py = ty * TILE;
+
+            switch(tile.type) {
+                case T.DIRT:
+                case T.GAS: // Gas looks like dirt!
+                    ctx.fillStyle = getSoilColor(ty);
+                    ctx.fillRect(px, py, TILE, TILE);
+                    // Subtle texture
+                    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+                    ctx.fillRect(px + TILE * 0.3, py + TILE * 0.3, TILE * 0.2, TILE * 0.2);
+                    break;
+                case T.ROCK:
+                    ctx.fillStyle = '#555';
+                    ctx.fillRect(px, py, TILE, TILE);
+                    ctx.fillStyle = '#666';
+                    ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+                    ctx.fillStyle = '#777';
+                    ctx.fillRect(px + 4, py + 4, 6, 6);
+                    break;
+                case T.LAVA:
+                    ctx.fillStyle = '#d32';
+                    ctx.fillRect(px, py, TILE, TILE);
+                    ctx.fillStyle = `rgba(255,${100 + Math.sin(G.t * 5 + tx + ty) * 80},0,0.6)`;
+                    ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+                    break;
+                case T.MINERAL:
+                    // Soil background
+                    ctx.fillStyle = getSoilColor(ty);
+                    ctx.fillRect(px, py, TILE, TILE);
+                    // Mineral gem
+                    ctx.fillStyle = tile.mineral.color;
+                    const s = TILE * 0.6, ox = (TILE - s) / 2;
+                    ctx.fillRect(px + ox, py + ox, s, s);
+                    // Sparkle
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.fillRect(px + ox + 2, py + ox + 2, s * 0.3, s * 0.3);
+                    break;
+                case T.ARTIFACT:
+                    ctx.fillStyle = getSoilColor(ty);
+                    ctx.fillRect(px, py, TILE, TILE);
+                    ctx.fillStyle = '#ff0';
+                    ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
+                    ctx.fillStyle = '#fa0';
+                    ctx.font = `${TILE * 0.6}px serif`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('★', px + TILE / 2, py + TILE * 0.75);
+                    break;
+                case T.BARRIER:
+                    ctx.fillStyle = '#1a0505';
+                    ctx.fillRect(px, py, TILE, TILE);
+                    ctx.fillStyle = '#300';
+                    ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
+                    break;
+                case T.EMPTY:
+                    // Background gradient by depth
+                    const bgZ = getDepthZone(ty);
+                    if (bgZ === 'hell') {
+                        ctx.fillStyle = `rgba(40,${5 + Math.sin(G.t * 2 + ty) * 5},0,1)`;
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
+                    break;
+            }
+        }
+    }
+
+    // ── Draw Pod ──
+    if (G.phase === 'play' || G.phase === 'boss' || G.phase === 'shop' || G.phase === 'transmission') {
+        drawPod();
+    }
+
+    // ── Draw Boss ──
+    if (G.bossPhase > 0) {
+        drawBoss();
+    }
+
+    // ── Draw Particles ──
+    for (const p of G.particles) {
+        const alpha = Math.max(0, p.life / p.maxLife);
+        if (p.text) {
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = p.color;
+            ctx.font = 'bold 12px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(p.text, p.x, p.y);
+            ctx.globalAlpha = 1;
+        } else {
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = p.color;
+            ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+            ctx.globalAlpha = 1;
+        }
+    }
+
+    ctx.restore();
+
+    // ── HUD ──
+    drawHUD();
+}
+
+function drawPod() {
+    const px = G.pod.x, py = G.pod.y;
+    // Body
+    ctx.fillStyle = G.podColor || '#f80';
+    ctx.fillRect(px + 2, py + 4, TILE - 4, TILE - 8);
+    // Cockpit
+    ctx.fillStyle = '#4af';
+    ctx.fillRect(px + 6, py + 5, TILE - 12, 6);
+    // Drill (bottom)
+    ctx.fillStyle = '#888';
+    const drillLen = G.drilling ? 6 + Math.sin(G.t * 20) * 2 : 4;
+    ctx.beginPath();
+    ctx.moveTo(px + TILE / 2 - 4, py + TILE - 4);
+    ctx.lineTo(px + TILE / 2 + 4, py + TILE - 4);
+    ctx.lineTo(px + TILE / 2, py + TILE - 4 + drillLen);
+    ctx.fill();
+    // Propeller (top)
+    if (inputUp() || (!G.onGround && G.pod.vy < 0)) {
+        const propW = 8 + Math.sin(G.t * 30) * 6;
+        ctx.fillStyle = 'rgba(200,200,200,0.5)';
+        ctx.fillRect(px + TILE / 2 - propW, py, propW * 2, 3);
+    }
+    // Smoke trail when moving
+    if (Math.abs(G.pod.vx) > 10 || G.pod.vy < -10) {
+        spawnParticle(px + TILE / 2, py + TILE, rngRange(-10, 10), rngRange(10, 30), 'rgba(150,150,150,0.5)', 0.3, 2);
+    }
+    // Damage visual
+    if (G.hull < getMaxHull() * 0.3) {
+        if (Math.random() < 0.3) {
+            spawnParticle(px + rngRange(0, TILE), py + rngRange(0, TILE), rngRange(-20, 20), rngRange(-30, -10), '#f44', 0.3, 2);
+        }
+    }
+}
+
+function drawBuildings() {
+    for (const b of BUILDINGS) {
+        const bx = b.x * TILE, by = -TILE * 2.5;
+        const bw = b.w * TILE, bh = TILE * 2.5;
+        // Building body
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = b.color;
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(bx, by, bw, bh);
+        // Roof
+        ctx.fillStyle = b.color;
+        ctx.fillRect(bx, by, bw, 5);
+        // Sign
+        ctx.fillStyle = b.color;
+        ctx.font = `bold ${Math.min(10, bw / b.name.length * 1.2)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.fillText(b.name, bx + bw / 2, by + 18);
+        // Icon
+        ctx.font = '18px serif';
+        ctx.fillText(b.icon, bx + bw / 2, by + bh - 10);
+        // Glow
+        ctx.fillStyle = `rgba(${parseInt(b.color.slice(1,3),16)},${parseInt(b.color.slice(3,5),16)},${parseInt(b.color.slice(5,7),16)},0.05)`;
+        ctx.fillRect(bx - 4, by - 4, bw + 8, bh + 8);
+    }
+}
+
+function drawPortal() {
+    const px = PORTAL_X * TILE, py = -TILE * 2.5;
+    const pw = TILE * 2, ph = TILE * 2.5;
+    // Outer glow
+    const pulse = 0.5 + Math.sin(G.t * 3) * 0.3;
+    ctx.fillStyle = `rgba(128,0,255,${0.1 * pulse})`;
+    ctx.fillRect(px - 8, py - 8, pw + 16, ph + 16);
+    // Portal frame
+    ctx.strokeStyle = `rgba(180,80,255,${0.5 + pulse * 0.5})`;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(px, py, pw, ph);
+    // Inner vortex
+    ctx.fillStyle = `rgba(100,0,200,${0.3 + pulse * 0.2})`;
+    ctx.fillRect(px + 3, py + 3, pw - 6, ph - 6);
+    // Swirl effect
+    for (let i = 0; i < 3; i++) {
+        const angle = G.t * 2 + i * Math.PI * 2 / 3;
+        const rx = Math.cos(angle) * 6, ry = Math.sin(angle) * 10;
+        ctx.fillStyle = `rgba(200,100,255,${0.6 - i * 0.15})`;
+        ctx.beginPath();
+        ctx.arc(px + pw / 2 + rx, py + ph / 2 + ry, 3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    // Label
+    ctx.fillStyle = `rgba(200,150,255,${0.6 + pulse * 0.4})`;
+    ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('VIBE JAM', px + pw / 2, py - 5);
+    ctx.fillText('PORTAL', px + pw / 2, py - 5 + 9);
+}
+
+function drawBoss() {
+    const bx = G.bossX, by = G.bossY;
+    const h = TILE * 3;
+    if (G.bossPhase === 1) {
+        // Business suit Satan
+        ctx.fillStyle = '#200';
+        ctx.fillRect(bx - TILE, by - h, TILE * 2, h);
+        // Suit
+        ctx.fillStyle = '#111';
+        ctx.fillRect(bx - TILE + 4, by - h + TILE, TILE * 2 - 8, h - TILE);
+        // Red eyes
+        ctx.fillStyle = '#f00';
+        ctx.fillRect(bx - 4, by - h + 8, 5, 5);
+        ctx.fillRect(bx + TILE - 8, by - h + 8, 5, 5);
+        // Horns
+        ctx.fillStyle = '#800';
+        ctx.fillRect(bx - TILE, by - h - 8, 6, 12);
+        ctx.fillRect(bx + TILE - 6, by - h - 8, 6, 12);
+        // Health bar
+        drawBossHP(bx, by - h - 20);
+    } else if (G.bossPhase === 2) {
+        // Cyborg demon
+        ctx.fillStyle = '#400';
+        ctx.fillRect(bx - TILE, by - h, TILE * 2, h);
+        // Metal parts
+        ctx.fillStyle = '#666';
+        ctx.fillRect(bx - TILE + 2, by - h + TILE * 0.5, TILE * 2 - 4, TILE);
+        // Glowing chest
+        ctx.fillStyle = `rgba(255,${100 + Math.sin(G.t * 4) * 50},0,0.8)`;
+        ctx.fillRect(bx - 2, by - h + TILE * 1.2, TILE + 4, TILE * 0.6);
+        // Red eyes
+        ctx.fillStyle = '#f00';
+        ctx.fillRect(bx - 3, by - h + 6, 6, 6);
+        ctx.fillRect(bx + TILE - 6, by - h + 6, 6, 6);
+        drawBossHP(bx, by - h - 20);
+    }
+
+    // Laser beam
+    if (G.bossAttack === 'laser' && G.bossPhase === 1) {
+        const angle = G.bossLaserAngle - Math.PI / 2;
+        ctx.strokeStyle = `rgba(255,255,255,${0.5 + Math.sin(G.t * 20) * 0.3})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(bx, by - h + 10);
+        ctx.lineTo(bx + Math.cos(angle) * TILE * 12, by - h + 10 + Math.sin(angle) * TILE * 12);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,0,0,0.3)';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+    }
+
+    // Boss projectiles
+    for (const p of G.bossProjectiles) {
+        ctx.fillStyle = `rgba(255,${150 + Math.sin(G.t * 10) * 50},0,0.9)`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 8, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,200,0.5)';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function drawBossHP(x, y) {
+    const w = TILE * 3, h = 6;
+    ctx.fillStyle = '#300';
+    ctx.fillRect(x - TILE / 2, y, w, h);
+    ctx.fillStyle = G.bossPhase === 1 ? '#f00' : '#f0f';
+    ctx.fillRect(x - TILE / 2, y, w * (G.bossHP / G.bossMaxHP), h);
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(x - TILE / 2, y, w, h);
+}
+
+function drawHUD() {
+    if (G.phase === 'menu' || G.phase === 'dead' || G.phase === 'victory') return;
+
+    // Update bars
+    const fuelPct = G.fuel / getMaxFuel();
+    const hullPct = G.hull / getMaxHull();
+    const cargoPct = getCargoVolume() / getMaxCargo();
+
+    document.getElementById('fuel-bar').style.width = `${fuelPct * 100}%`;
+    document.getElementById('fuel-bar').style.background = fuelPct < 0.25 ? '#f00' : fuelPct < 0.5 ? '#fa0' : 'linear-gradient(90deg,#0a0,#0f0)';
+    document.getElementById('fuel-text').textContent = `${Math.round(G.fuel)}/${Math.round(getMaxFuel())}`;
+
+    document.getElementById('hull-bar').style.width = `${hullPct * 100}%`;
+    document.getElementById('hull-bar').style.background = hullPct < 0.25 ? '#f00' : hullPct < 0.5 ? '#fa0' : 'linear-gradient(90deg,#a00,#f44)';
+    document.getElementById('hull-text').textContent = `${Math.round(G.hull)}/${getMaxHull()}`;
+
+    document.getElementById('cargo-bar').style.width = `${cargoPct * 100}%`;
+    document.getElementById('cargo-text').textContent = `${getCargoVolume()}/${getMaxCargo()}`;
+
+    document.getElementById('cash-display').textContent = `$${G.cash.toLocaleString()}`;
+    document.getElementById('score-display').textContent = `Score: ${G.score.toLocaleString()}`;
+
+    // Depth display
+    const depthFt = Math.round(Math.max(0, G.pod.y / TILE) * FT_PER_TILE);
+    if (G.inBossArea) {
+        document.getElementById('depth-display').textContent = '-66,666 ft';
+        document.getElementById('depth-display').style.color = '#f00';
+    } else if (depthFt > 5813) {
+        document.getElementById('depth-display').textContent = `?${String(Math.floor(Math.random() * 99999)).padStart(5, '0')}`;
+        document.getElementById('depth-display').style.color = '#f80';
+    } else if (G.pod.y > 0) {
+        document.getElementById('depth-display').textContent = `-${depthFt.toLocaleString()} ft`;
+        document.getElementById('depth-display').style.color = '#fff';
+    } else {
+        document.getElementById('depth-display').textContent = 'Surface';
+        document.getElementById('depth-display').style.color = '#0f0';
+    }
+
+    // Items bar
+    updateItemsBar();
+
+    // Low fuel/hull screen flash
+    if (fuelPct < 0.15 && fuelPct > 0) {
+        ctx.fillStyle = `rgba(255,150,0,${0.05 + Math.sin(G.t * 6) * 0.05})`;
+        ctx.fillRect(0, 0, W, H);
+    }
+    if (hullPct < 0.2 && hullPct > 0) {
+        ctx.fillStyle = `rgba(255,0,0,${0.05 + Math.sin(G.t * 4) * 0.05})`;
+        ctx.fillRect(0, 0, W, H);
+    }
+}
+
+function updateItemsBar() {
+    const bar = document.getElementById('items-bar');
+    const items = [
+        { id: 'fuelTank', label: 'F', name: 'Fuel' },
+        { id: 'nanobots', label: 'R', name: 'Nano' },
+        { id: 'dynamite', label: 'X', name: 'Dyna' },
+        { id: 'plastic', label: 'C', name: 'C4' },
+        { id: 'quantumTP', label: 'Q', name: 'QTP' },
+        { id: 'matterTX', label: 'M', name: 'MTX' },
+    ];
+    bar.innerHTML = items.map(i =>
+        `<span onclick="useItem('${i.id}')" title="${i.name}" style="opacity:${G.items[i.id] > 0 ? 1 : 0.3}">[${i.label}] ${i.name}:${G.items[i.id]}</span>`
+    ).join('');
+}
+
+// ── Portal ──
+function enterPortal() {
+    const gameURL = window.location.origin + window.location.pathname;
+    const portalURL = `https://vibej.am/portal/2026?username=${encodeURIComponent(G.username)}&color=${encodeURIComponent(G.podColor)}&speed=5&ref=${encodeURIComponent(gameURL)}`;
+    window.location.href = portalURL;
+}
+
+// ── Main Game Functions ──
+function hideAllOverlays() {
+    document.getElementById('start-screen').style.display = 'none';
+    document.getElementById('gameover-screen').style.display = 'none';
+    document.getElementById('victory-screen').style.display = 'none';
+    document.getElementById('shop-overlay').style.display = 'none';
+    document.getElementById('transmission').style.display = 'none';
+}
+
+function showHUD() {
+    document.getElementById('hud').style.display = 'block';
+    document.getElementById('hud-right').style.display = 'block';
+    document.getElementById('items-bar').style.display = 'flex';
+    if (isMobile) {
+        document.getElementById('dpad').style.display = 'block';
+        document.getElementById('mobile-items').style.display = 'flex';
+    }
+}
+
+function startGame() {
+    initAudio();
+    initGameState();
+    G.phase = 'play';
+    G.fuel = 0; // Must refuel!
+    G.maxFuel = getMaxFuel();
+    G.maxHull = getMaxHull();
+    G.maxCargo = getMaxCargo();
+
+    // Portal params
+    if (pUsername) G.username = pUsername;
+    if (pColor) G.podColor = pColor;
+    if (refGame) G.refGame = refGame;
+
+    // Generate initial terrain
+    generateChunk(0);
+    generateChunk(1);
+
+    hideAllOverlays();
+    showHUD();
+
+    // Show initial transmission
+    if (!isPortal) {
+        checkTransmissions(0);
+    }
+}
+
+function newGame() {
+    hideAllOverlays();
+    seed = Date.now();
+    startGame();
+}
+
+// ── Click-to-enter shops ──
+canvas.addEventListener('click', e => {
+    if (G.phase !== 'play') return;
+    if (G.pod.y > 0) return; // underground
+    initAudio();
+    const px = Math.floor(G.pod.x / TILE);
+    for (const b of BUILDINGS) {
+        if (px >= b.x && px < b.x + b.w) {
+            openShop(b.action);
+            return;
+        }
+    }
+});
+
+// Also enter shops by pressing down on them
+let shopCheckTimer = 0;
+
+// ── Main Loop ──
+let lastTime = 0;
+function gameLoop(timestamp) {
+    const dt = Math.min((timestamp - lastTime) / 1000, 0.05); // cap at 50ms
+    lastTime = timestamp;
+
+    if (G.phase === 'play' || G.phase === 'boss') {
+        G.t += dt;
+        updatePod(dt);
+        updateBoss(dt);
+        updateParticles(dt);
+        updateCamera();
+        updateFuelWarning(dt);
+
+        // Shop entry check (press down on surface)
+        if (G.pod.y <= 0 && G.pod.y >= -2 * TILE && G.phase === 'play') {
+            shopCheckTimer += dt;
+            if (shopCheckTimer > 0.3) {
+                shopCheckTimer = 0;
+                checkShopEntry();
+            }
+        }
+    } else {
+        updateParticles(dt);
+        updateCamera();
+        G.t += dt;
+    }
+
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+// ── Start ──
+// Auto-start if portal
+if (isPortal) {
+    startGame();
+} else {
+    // Check for existing save
+    if (localStorage.getItem('marsBelow_save')) {
+        const startBtn = document.querySelector('#start-screen .btn');
+        const loadBtn = document.createElement('button');
+        loadBtn.className = 'btn';
+        loadBtn.textContent = 'LOAD SAVE';
+        loadBtn.onclick = () => { initAudio(); loadSave(); };
+        startBtn.parentNode.insertBefore(loadBtn, startBtn.nextSibling);
+    }
+}
+
+requestAnimationFrame(gameLoop);
+</script></body></html>
