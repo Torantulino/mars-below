@@ -491,9 +491,18 @@ function getMaxHull() { return UPGRADES.hull[G.upgrades.hull].hp; }
 function getMaxCargo() { return UPGRADES.cargo[G.upgrades.cargo].capacity; }
 function getRadiatorEff() { return UPGRADES.radiator[G.upgrades.radiator].eff; }
 
+function isOverShop() {
+    if (G.pod.y > 0) return false; // underground
+    if (G.pod.y < -3 * TILE) return false;
+    const px = Math.floor(G.pod.x / TILE);
+    for (const b of BUILDINGS) {
+        if (px >= b.x && px < b.x + b.w) return b;
+    }
+    return false;
+}
+
 function updatePod(dt) {
     if (G.phase !== 'play' && G.phase !== 'boss') return;
-    if (G.phase === 'transmission') return;
     const pod = G.pod;
     const tileX = Math.floor(pod.x / TILE);
     const tileY = Math.floor((pod.y + TILE - 1) / TILE); // feet tile
@@ -525,6 +534,12 @@ function updatePod(dt) {
         }
         // Consume fuel while drilling
         G.fuel -= FUEL_RATE * dt;
+        // Check fuel death while drilling
+        if (G.fuel <= 0) {
+            G.fuel = 0;
+            die('Fuel Empty');
+            return;
+        }
         spawnDrillParticles();
         return; // No other movement while drilling
     }
@@ -543,18 +558,23 @@ function updatePod(dt) {
         G.onGround = false;
     }
 
-    // Drill down
+    // Drill down (but not if over a shop on the surface!)
     if (inputDown() && G.onGround) {
-        const targetTy = tileBelowY;
-        const targetTx = tileX;
-        const tile = getTile(targetTx, targetTy);
-        if (tile.type !== T.EMPTY && tile.type !== T.BARRIER) {
-            startDrill(targetTx, targetTy, 'down');
-            moving = true;
-        } else if (tile.type === T.EMPTY) {
-            // Fall into empty space below
-            pod.vy = 50;
-            G.onGround = false;
+        const shopBuilding = isOverShop();
+        if (shopBuilding) {
+            openShop(shopBuilding.action);
+        } else {
+            const targetTy = tileBelowY;
+            const targetTx = tileX;
+            const tile = getTile(targetTx, targetTy);
+            if (tile.type !== T.EMPTY && tile.type !== T.BARRIER) {
+                startDrill(targetTx, targetTy, 'down');
+                moving = true;
+            } else if (tile.type === T.EMPTY) {
+                // Fall into empty space below
+                pod.vy = 50;
+                G.onGround = false;
+            }
         }
     }
 
@@ -715,6 +735,10 @@ function completeDrill() {
         } else {
             spawnTextParticle(tx * TILE, ty * TILE - 10, 'CARGO FULL!', '#f44');
             playSound('full');
+            // Don't destroy the tile - preserve the mineral for later
+            G.drilling = false;
+            G.drillProgress = 0;
+            return;
         }
     } else if (tile.type === T.ARTIFACT) {
         const art = tile.artifact;
@@ -945,16 +969,7 @@ function checkShopEntry() {
         enterPortal();
         return;
     }
-
-    // Auto-enter shop when standing on/near building and pressing Down or S
-    for (const b of BUILDINGS) {
-        if (px >= b.x && px < b.x + b.w && G.pod.y >= -3 * TILE && G.pod.y <= 0) {
-            if (inputDown()) {
-                openShop(b.action);
-                return;
-            }
-        }
-    }
+    // Note: Shop entry by Down key is now handled in updatePod via isOverShop()
 }
 
 function openShop(type) {
@@ -983,12 +998,13 @@ function openFuelShop(title, content) {
     costs.forEach(amt => {
         const liters = Math.min(amt, getMaxFuel() - G.fuel);
         if (liters <= 0) return;
+        const cost = Math.ceil(liters); // $1 per liter, fair pricing
         const div = document.createElement('div');
         div.className = 'shop-item';
-        div.innerHTML = `<span>+${Math.floor(liters)}L fuel</span><span class="price">$${amt}</span>`;
+        div.innerHTML = `<span>+${Math.floor(liters)}L fuel</span><span class="price">$${cost}</span>`;
         div.onclick = () => {
-            if (G.cash >= amt) {
-                G.cash -= amt;
+            if (G.cash >= cost) {
+                G.cash -= cost;
                 G.fuel = Math.min(G.fuel + liters, getMaxFuel());
                 playSound('fuel');
                 openShop('fuel'); // refresh
@@ -1197,13 +1213,15 @@ function loadSave() {
 function closeShop() {
     document.getElementById('shop-overlay').style.display = 'none';
     G.phase = 'play';
-    // Auto-save when leaving shops
+    // Auto-save when leaving shops (full save including terrain)
     try {
         const saveData = {
             pod: G.pod, fuel: G.fuel, hull: G.hull, cash: G.cash, score: G.score,
             cargo: G.cargo, upgrades: G.upgrades, items: G.items,
-            dugTiles: [...G.dugTiles].slice(-5000), txSeen: [...G.txSeen],
+            dugTiles: [...G.dugTiles], txSeen: [...G.txSeen],
             deepest: G.deepest, satanHeads: G.satanHeads,
+            terrain: Object.fromEntries(G.terrain),
+            generatedChunks: [...G.generatedChunks],
         };
         localStorage.setItem('marsBelow_save', JSON.stringify(saveData));
     } catch(e) {}
@@ -2055,8 +2073,8 @@ canvas.addEventListener('click', e => {
     }
 });
 
-// Also enter shops by pressing down on them
-let shopCheckTimer = 0;
+// Shop entry by pressing Down is now handled directly in updatePod via isOverShop()
+// Click handler above provides mouse/touch alternative
 
 // ── Main Loop ──
 let lastTime = 0;
@@ -2072,13 +2090,10 @@ function gameLoop(timestamp) {
         updateCamera();
         updateFuelWarning(dt);
 
-        // Shop entry check (press down on surface)
+        // Shop entry by keyboard is now handled in updatePod
+        // Portal check still uses checkShopEntry
         if (G.pod.y <= 0 && G.pod.y >= -2 * TILE && G.phase === 'play') {
-            shopCheckTimer += dt;
-            if (shopCheckTimer > 0.3) {
-                shopCheckTimer = 0;
-                checkShopEntry();
-            }
+            checkShopEntry();
         }
     } else {
         updateParticles(dt);
