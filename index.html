@@ -674,55 +674,75 @@ function updatePod(dt) {
         }
     }
 
-    // Move/drill left — only drill if also holding Down (like Motherload)
+    // Sideways drilling requires the pod to be pressed flush against a solid
+    // tile AND the arrow held for EDGE_HOLD_SEC to avoid accidental drilling.
+    const EDGE_HOLD_SEC = 0.5;
+    const EDGE_EPSILON = 2; // px tolerance for "flush against the wall"
+
+    // Move/drill left
     if (inputLeft()) {
         if (G.onGround) {
             const targetTx = tileX - 1;
             const targetTy = Math.floor(pod.y / TILE);
             const tile = getTile(targetTx, targetTy);
             const tileIsSolid = tile.type !== T.EMPTY && tile.type !== T.BARRIER && targetTx >= 0;
-            if (tileIsSolid && inputDown()) {
-                // Down+Left = drill sideways
-                startDrill(targetTx, targetTy, 'left');
-                moving = true;
-            } else if (tileIsSolid) {
-                // Solid wall blocks movement — don't auto-drill
-                // (player can position themselves against the wall for explosives)
+            const flushAgainstEdge = Math.abs(pod.x - tileX * TILE) < EDGE_EPSILON;
+            if (tileIsSolid && flushAgainstEdge) {
+                G.edgeHoldLeft = (G.edgeHoldLeft || 0) + dt;
+                if (G.edgeHoldLeft >= EDGE_HOLD_SEC) {
+                    startDrill(targetTx, targetTy, 'left');
+                    G.edgeHoldLeft = 0;
+                    moving = true;
+                }
             } else if (tile.type === T.EMPTY) {
                 pod.x -= moveSpeed * dt;
                 G.fuel -= FUEL_RATE * dt;
                 moving = true;
+                G.edgeHoldLeft = 0;
+            } else {
+                G.edgeHoldLeft = 0;
             }
         } else {
             pod.x -= moveSpeed * 0.7 * dt;
             G.fuel -= FUEL_RATE * 0.5 * dt;
             moving = true;
+            G.edgeHoldLeft = 0;
         }
+    } else {
+        G.edgeHoldLeft = 0;
     }
 
-    // Move/drill right — only drill if also holding Down (like Motherload)
+    // Move/drill right
     if (inputRight()) {
         if (G.onGround) {
             const targetTx = tileX + 1;
             const targetTy = Math.floor(pod.y / TILE);
             const tile = getTile(targetTx, targetTy);
             const tileIsSolid = tile.type !== T.EMPTY && tile.type !== T.BARRIER && targetTx < MAP_W;
-            if (tileIsSolid && inputDown()) {
-                // Down+Right = drill sideways
-                startDrill(targetTx, targetTy, 'right');
-                moving = true;
-            } else if (tileIsSolid) {
-                // Solid wall blocks movement — don't auto-drill
+            const flushAgainstEdge = Math.abs(pod.x - tileX * TILE) < EDGE_EPSILON;
+            if (tileIsSolid && flushAgainstEdge) {
+                G.edgeHoldRight = (G.edgeHoldRight || 0) + dt;
+                if (G.edgeHoldRight >= EDGE_HOLD_SEC) {
+                    startDrill(targetTx, targetTy, 'right');
+                    G.edgeHoldRight = 0;
+                    moving = true;
+                }
             } else if (tile.type === T.EMPTY) {
                 pod.x += moveSpeed * dt;
                 G.fuel -= FUEL_RATE * dt;
                 moving = true;
+                G.edgeHoldRight = 0;
+            } else {
+                G.edgeHoldRight = 0;
             }
         } else {
             pod.x += moveSpeed * 0.7 * dt;
             G.fuel -= FUEL_RATE * 0.5 * dt;
             moving = true;
+            G.edgeHoldRight = 0;
         }
+    } else {
+        G.edgeHoldRight = 0;
     }
 
     // ── Gravity ──
