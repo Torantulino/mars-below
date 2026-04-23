@@ -654,31 +654,41 @@ function updatePod(dt) {
         G.onGround = false;
     }
 
+    // Drilling requires a short continuous hold to avoid accidental drilling.
+    const EDGE_HOLD_SEC = 0.3;
+    const EDGE_EPSILON = 2; // px tolerance for "flush against the wall"
+
     // Drill down (but not if over a shop on the surface!)
+    // Requires holding Down for EDGE_HOLD_SEC to avoid accidental drilling.
     if (inputDown() && G.onGround) {
         const shopBuilding = isOverShop();
         if (shopBuilding) {
             openShop(shopBuilding.action);
+            G.edgeHoldDown = 0;
         } else {
             const targetTy = tileBelowY;
             const targetTx = tileX;
             const tile = getTile(targetTx, targetTy);
             if (tile.type !== T.EMPTY && tile.type !== T.BARRIER) {
-                startDrill(targetTx, targetTy, 'down');
-                moving = true;
+                G.edgeHoldDown = (G.edgeHoldDown || 0) + dt;
+                if (G.edgeHoldDown >= EDGE_HOLD_SEC) {
+                    startDrill(targetTx, targetTy, 'down');
+                    G.edgeHoldDown = 0;
+                    moving = true;
+                }
             } else if (tile.type === T.EMPTY) {
                 // Fall into empty space below
                 pod.vy = 50;
                 G.onGround = false;
+                G.edgeHoldDown = 0;
             }
         }
+    } else {
+        G.edgeHoldDown = 0;
     }
 
     // Sideways drilling requires the pod to be pressed flush against a solid
     // tile AND the arrow held for EDGE_HOLD_SEC to avoid accidental drilling.
-    const EDGE_HOLD_SEC = 0.5;
-    const EDGE_EPSILON = 2; // px tolerance for "flush against the wall"
-
     // Move/drill left
     if (inputLeft()) {
         if (G.onGround) {
@@ -1860,6 +1870,33 @@ function updateFuelWarning(dt) {
 
     // ── FUEL WARNING ──
     const fPct = G.fuel / getMaxFuel();
+
+    // ── THEMATIC 53% FUEL ALERT (ground control radio transmission) ──
+    // Fires once per descent when fuel first crosses 53% — a calm early
+    // heads-up from mission control before the real low-fuel beeps kick in.
+    if (fPct <= 0.53 && !G.fuelWarning) {
+        G.fuelWarning = 1;
+        spawnTextParticle(G.pod.x + TILE / 2, G.pod.y - 28,
+            '📡 GROUND CONTROL: fuel at 53% — plan your return', '#ff9');
+        // Short radio-blip warble: two quick chirps + static tail
+        const blip = (when, freq) => {
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.connect(g); g.connect(audioCtx.destination);
+            o.type = 'sawtooth';
+            o.frequency.setValueAtTime(freq, when);
+            o.frequency.exponentialRampToValueAtTime(freq * 1.4, when + 0.08);
+            g.gain.setValueAtTime(0.0, when);
+            g.gain.linearRampToValueAtTime(0.08, when + 0.01);
+            g.gain.exponentialRampToValueAtTime(0.001, when + 0.1);
+            o.start(when); o.stop(when + 0.12);
+        };
+        blip(now, 880);
+        blip(now + 0.14, 660);
+    }
+    // Reset the latch when refuelled well above the threshold so it can
+    // fire again on the next descent.
+    if (fPct > 0.7 && G.fuelWarning) G.fuelWarning = 0;
+
     if (fPct < 0.25 && fPct > 0) {
         const critical = fPct < 0.1;
         const interval = critical ? 0.18 : fPct < 0.15 ? 0.4 : 0.7;
