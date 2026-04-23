@@ -189,6 +189,62 @@ resize();
 
 // ── Constants ──
 const TILE = 40; // px per tile at 1x zoom
+
+// ── Sprite Loader ──
+const SPRITES = {};
+let SPRITES_READY = false;
+const DIRT_VARIANTS = []; // 8 depth-tinted dirt canvases
+const SPRITE_NAMES = [
+    'tile_dirt','tile_rock','tile_explosive_rock',
+    'tile_lava_frame1','tile_lava_frame2','tile_lava_frame3','tile_lava_frame4',
+    'tile_hell_barrier','tile_empty_cave','tile_hell_cave',
+    'mineral_ironium','mineral_bronzium','mineral_silverium','mineral_goldium',
+    'mineral_platinium','mineral_einsteinium','mineral_emerald','mineral_ruby',
+    'mineral_diamond','mineral_amazonite','artifact',
+    'pod_idle','pod_flying_frame1','pod_flying_frame2','pod_flying_frame3',
+    'pod_drilling_down','pod_drilling_left','pod_drilling_right',
+    'pod_damaged','pod_shadow',
+    'surface_platform',
+    'building_fuel_station','building_mineral_buyer','building_upgrade_shop',
+    'building_item_shop','building_save_station'
+];
+function loadSprites(cb) {
+    let remaining = SPRITE_NAMES.length;
+    SPRITE_NAMES.forEach(name => {
+        const img = new Image();
+        img.onload = () => { if (--remaining === 0) { buildDirtVariants(); SPRITES_READY = true; cb && cb(); } };
+        img.onerror = () => { console.warn('sprite missing:', name); if (--remaining === 0) { buildDirtVariants(); SPRITES_READY = true; cb && cb(); } };
+        img.src = 'sprites/' + name + '.png';
+        SPRITES[name] = img;
+    });
+}
+function buildDirtVariants() {
+    // Pre-render 8 dirt variants with depth-based color overlays
+    const tints = [
+        'rgba(0,0,0,0)',         // surface
+        'rgba(160,80,40,0.15)',  // shallow
+        'rgba(120,60,30,0.25)',  // midshallow
+        'rgba(80,80,90,0.30)',   // rock
+        'rgba(200,60,20,0.30)',  // lava
+        'rgba(40,120,80,0.25)',  // gas
+        'rgba(30,30,60,0.40)',   // abyss
+        'rgba(80,10,10,0.50)'    // hell
+    ];
+    const base = SPRITES.tile_dirt;
+    if (!base || !base.width) return;
+    for (let i = 0; i < tints.length; i++) {
+        const c = document.createElement('canvas');
+        c.width = TILE; c.height = TILE;
+        const cx = c.getContext('2d');
+        cx.drawImage(base, 0, 0, TILE, TILE);
+        cx.globalCompositeOperation = 'source-atop';
+        cx.fillStyle = tints[i];
+        cx.fillRect(0, 0, TILE, TILE);
+        DIRT_VARIANTS.push(c);
+    }
+}
+const DEPTH_ZONE_IDX = { surface:0, shallow:1, midshallow:2, rock:3, lava:4, gas:5, abyss:6, hell:7 };
+loadSprites();
 const MAP_W = 48;
 const MAP_D = 600; // tiles deep
 const FT_PER_TILE = 12.5;
@@ -2067,150 +2123,118 @@ function draw() {
 
             switch(tile.type) {
                 case T.DIRT:
-                case T.GAS: // Gas looks like dirt!
-                    ctx.fillStyle = getSoilColor(ty);
-                    ctx.fillRect(px, py, TILE, TILE);
-                    // Multi-layer noise texture for natural look
-                    const noiseBright = ((tileSeed & 0xFF) / 255) * 0.12;
-                    ctx.fillStyle = `rgba(0,0,0,${0.05 + noiseBright})`;
-                    ctx.fillRect(px + ((tileSeed >> 4) % 12), py + ((tileSeed >> 8) % 12), TILE * 0.35, TILE * 0.35);
-                    ctx.fillStyle = `rgba(255,255,255,${0.02 + ((tileSeed >> 12) & 0xF) / 255 * 0.04})`;
-                    ctx.fillRect(px + ((tileSeed >> 16) % 18), py + ((tileSeed >> 20) % 18), TILE * 0.2, TILE * 0.15);
-                    // Edge darkening (top/left)
-                    ctx.fillStyle = 'rgba(0,0,0,0.08)';
-                    ctx.fillRect(px, py, TILE, 2);
-                    ctx.fillRect(px, py, 2, TILE);
-                    break;
-                case T.ROCK:
-                    // 3D rock with highlight and shadow
-                    ctx.fillStyle = '#484848';
-                    ctx.fillRect(px, py, TILE, TILE);
-                    ctx.fillStyle = '#5a5a5a';
-                    ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
-                    // Top highlight
-                    ctx.fillStyle = '#707070';
-                    ctx.fillRect(px + 2, py + 2, TILE - 4, 4);
-                    ctx.fillRect(px + 2, py + 2, 4, TILE - 4);
-                    // Bottom shadow
-                    ctx.fillStyle = '#3a3a3a';
-                    ctx.fillRect(px + 2, py + TILE - 6, TILE - 4, 4);
-                    ctx.fillRect(px + TILE - 6, py + 2, 4, TILE - 4);
-                    // Crack detail
-                    ctx.fillStyle = '#444';
-                    const crackX = px + 6 + ((tileSeed >> 3) % (TILE - 16));
-                    ctx.fillRect(crackX, py + 4, 2, TILE - 8);
-                    // "X" mark for unminable
-                    ctx.strokeStyle = 'rgba(255,80,80,0.25)';
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.moveTo(px + 6, py + 6); ctx.lineTo(px + TILE - 6, py + TILE - 6);
-                    ctx.moveTo(px + TILE - 6, py + 6); ctx.lineTo(px + 6, py + TILE - 6);
-                    ctx.stroke();
-                    break;
-                case T.LAVA:
-                    // Animated lava with flow and glow
-                    ctx.fillStyle = '#8b1a00';
-                    ctx.fillRect(px, py, TILE, TILE);
-                    const lavaPhase = G.t * 3 + tx * 0.7 + ty * 1.3;
-                    const lavaR = 220 + Math.sin(lavaPhase) * 35;
-                    const lavaG = 60 + Math.sin(lavaPhase * 1.3) * 50 + Math.sin(lavaPhase * 0.7 + 1) * 30;
-                    ctx.fillStyle = `rgb(${Math.round(lavaR)},${Math.round(Math.max(0,lavaG))},0)`;
-                    ctx.fillRect(px + 3, py + 3, TILE - 6, TILE - 6);
-                    // Bright spots
-                    ctx.fillStyle = `rgba(255,200,50,${0.3 + Math.sin(lavaPhase * 2) * 0.2})`;
-                    ctx.fillRect(px + 8 + Math.sin(lavaPhase) * 4, py + 8 + Math.cos(lavaPhase) * 4, TILE * 0.3, TILE * 0.25);
-                    // Outer glow
-                    ctx.fillStyle = `rgba(255,100,0,${0.08 + Math.sin(lavaPhase) * 0.04})`;
-                    ctx.fillRect(px - 2, py - 2, TILE + 4, TILE + 4);
-                    break;
-                case T.MINERAL: {
-                    // Soil background
-                    ctx.fillStyle = getSoilColor(ty);
-                    ctx.fillRect(px, py, TILE, TILE);
-                    const mc = tile.mineral.color;
-                    const ms = TILE * 0.55;
-                    const mox = (TILE - ms) / 2;
-                    const mcx = px + TILE / 2, mcy = py + TILE / 2;
-                    // Glow behind gem
-                    ctx.fillStyle = mc + '30'; // 30 = ~19% alpha in hex
-                    ctx.fillRect(px + mox - 4, py + mox - 4, ms + 8, ms + 8);
-                    // Diamond/gem shape
-                    ctx.fillStyle = mc;
-                    ctx.beginPath();
-                    ctx.moveTo(mcx, mcy - ms * 0.5);       // top
-                    ctx.lineTo(mcx + ms * 0.5, mcy);       // right
-                    ctx.lineTo(mcx, mcy + ms * 0.5);       // bottom
-                    ctx.lineTo(mcx - ms * 0.5, mcy);       // left
-                    ctx.closePath();
-                    ctx.fill();
-                    // Highlight facet
-                    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-                    ctx.beginPath();
-                    ctx.moveTo(mcx, mcy - ms * 0.5);
-                    ctx.lineTo(mcx + ms * 0.5, mcy);
-                    ctx.lineTo(mcx, mcy - ms * 0.1);
-                    ctx.lineTo(mcx - ms * 0.25, mcy - ms * 0.25);
-                    ctx.closePath();
-                    ctx.fill();
-                    // Sparkle animation
-                    const sparkle = Math.sin(G.t * 4 + tx * 3 + ty * 7) * 0.4 + 0.6;
-                    ctx.fillStyle = `rgba(255,255,255,${sparkle * 0.5})`;
-                    ctx.fillRect(mcx - 2, mcy - ms * 0.35, 3, 3);
+                case T.GAS: { // Gas looks like dirt!
+                    const dz = DEPTH_ZONE_IDX[getDepthZone(ty)] ?? 0;
+                    const dirtImg = DIRT_VARIANTS[dz] || SPRITES.tile_dirt;
+                    if (dirtImg && (dirtImg.complete !== false)) {
+                        ctx.drawImage(dirtImg, px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = getSoilColor(ty);
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
                     break;
                 }
-                case T.ARTIFACT:
-                    ctx.fillStyle = getSoilColor(ty);
-                    ctx.fillRect(px, py, TILE, TILE);
+                case T.ROCK:
+                    if (SPRITES.tile_rock && SPRITES.tile_rock.complete) {
+                        ctx.drawImage(SPRITES.tile_rock, px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = '#5a5a5a';
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
+                    break;
+                case T.LAVA: {
+                    const frame = Math.floor(G.t * 6 + tx * 0.5 + ty * 0.3) % 4;
+                    const lavaImg = SPRITES['tile_lava_frame' + (frame + 1)];
+                    if (lavaImg && lavaImg.complete) {
+                        ctx.drawImage(lavaImg, px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = '#d13500';
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
+                    // Outer glow
+                    ctx.fillStyle = `rgba(255,100,0,${0.08 + Math.sin(G.t * 3 + tx + ty) * 0.04})`;
+                    ctx.fillRect(px - 2, py - 2, TILE + 4, TILE + 4);
+                    break;
+                }
+                case T.MINERAL: {
+                    // Soil background from tinted dirt
+                    const dz = DEPTH_ZONE_IDX[getDepthZone(ty)] ?? 0;
+                    const dirtImg = DIRT_VARIANTS[dz] || SPRITES.tile_dirt;
+                    if (dirtImg && (dirtImg.complete !== false)) {
+                        ctx.drawImage(dirtImg, px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = getSoilColor(ty);
+                        ctx.fillRect(px, py, TILE, TILE);
+                    }
+                    const mineralImg = SPRITES['mineral_' + tile.mineral.id];
+                    // Sparkle pulse
+                    const sparkle = Math.sin(G.t * 4 + tx * 3 + ty * 7) * 0.4 + 0.6;
+                    ctx.fillStyle = tile.mineral.color + '30';
+                    ctx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
+                    if (mineralImg && mineralImg.complete) {
+                        ctx.drawImage(mineralImg, px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = tile.mineral.color;
+                        ctx.fillRect(px + TILE * 0.25, py + TILE * 0.25, TILE * 0.5, TILE * 0.5);
+                    }
+                    ctx.fillStyle = `rgba(255,255,255,${sparkle * 0.35})`;
+                    ctx.fillRect(px + TILE * 0.5 - 2, py + TILE * 0.2, 3, 3);
+                    break;
+                }
+                case T.ARTIFACT: {
+                    const dz = DEPTH_ZONE_IDX[getDepthZone(ty)] ?? 0;
+                    const dirtImg = DIRT_VARIANTS[dz] || SPRITES.tile_dirt;
+                    if (dirtImg && (dirtImg.complete !== false)) {
+                        ctx.drawImage(dirtImg, px, py, TILE, TILE);
+                    }
                     // Golden glow
                     ctx.fillStyle = `rgba(255,215,0,${0.15 + Math.sin(G.t * 3 + tx + ty) * 0.08})`;
                     ctx.fillRect(px - 3, py - 3, TILE + 6, TILE + 6);
-                    // Gold background
-                    ctx.fillStyle = '#c8a200';
-                    ctx.fillRect(px + 4, py + 4, TILE - 8, TILE - 8);
-                    ctx.fillStyle = '#ffd700';
-                    ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
-                    // Highlight
-                    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-                    ctx.fillRect(px + 6, py + 6, (TILE - 12) * 0.4, (TILE - 12) * 0.4);
-                    // Star icon
-                    ctx.fillStyle = '#b8860b';
-                    ctx.font = 'bold ' + Math.round(TILE * 0.5) + 'px serif';
-                    ctx.textAlign = 'center';
-                    ctx.fillText('★', px + TILE / 2, py + TILE * 0.72);
+                    if (SPRITES.artifact && SPRITES.artifact.complete) {
+                        ctx.drawImage(SPRITES.artifact, px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = '#ffd700';
+                        ctx.fillRect(px + 6, py + 6, TILE - 12, TILE - 12);
+                    }
                     break;
+                }
                 case T.BARRIER:
                     if (tile.isPlatform) {
-                        // Stone platform — already drawn by drawBuildings
-                    } else {
-                        // Hell barrier with texture
-                        ctx.fillStyle = '#1a0505';
-                        ctx.fillRect(px, py, TILE, TILE);
-                        ctx.fillStyle = '#2a0808';
-                        ctx.fillRect(px + 1, py + 1, TILE - 2, TILE - 2);
-                        // Subtle lava vein
+                        // Stone platform — drawn by drawBuildings
+                    } else if (SPRITES.tile_hell_barrier && SPRITES.tile_hell_barrier.complete) {
+                        ctx.drawImage(SPRITES.tile_hell_barrier, px, py, TILE, TILE);
                         ctx.fillStyle = `rgba(200,30,0,${0.1 + Math.sin(G.t + tx * 0.5 + ty * 0.3) * 0.05})`;
-                        ctx.fillRect(px + ((tileSeed >> 2) % (TILE - 8)) + 2, py + 4, 4, TILE - 8);
+                        ctx.fillRect(px, py, TILE, TILE);
+                    } else {
+                        ctx.fillStyle = '#2a0808';
+                        ctx.fillRect(px, py, TILE, TILE);
                     }
                     break;
                 case T.EMPTY: {
-                    // Background gradient by depth
                     const bgZ = getDepthZone(ty);
                     if (bgZ === 'hell') {
-                        const hellPulse = 0.7 + Math.sin(G.t * 2 + ty * 0.3 + tx * 0.5) * 0.3;
-                        ctx.fillStyle = `rgba(${Math.round(35 * hellPulse)},${Math.round(5 * hellPulse)},0,1)`;
+                        if (SPRITES.tile_hell_cave && SPRITES.tile_hell_cave.complete) {
+                            ctx.drawImage(SPRITES.tile_hell_cave, px, py, TILE, TILE);
+                        } else {
+                            ctx.fillStyle = '#230300';
+                            ctx.fillRect(px, py, TILE, TILE);
+                        }
+                        const hellPulse = Math.sin(G.t * 2 + ty * 0.3 + tx * 0.5) * 0.15;
+                        ctx.fillStyle = `rgba(200,30,0,${0.08 + hellPulse})`;
                         ctx.fillRect(px, py, TILE, TILE);
                     } else if (ty > 0) {
-                        // Depth-faded cave background
-                        const depthFade = Math.min(1, ty / 400);
-                        const bgR = Math.round(20 - depthFade * 10);
-                        const bgG = Math.round(14 - depthFade * 8);
-                        const bgB = Math.round(10 - depthFade * 6);
-                        ctx.fillStyle = `rgb(${bgR},${bgG},${bgB})`;
-                        ctx.fillRect(px, py, TILE, TILE);
-                        // Subtle grid for depth perception
-                        ctx.fillStyle = 'rgba(255,255,255,0.015)';
-                        ctx.fillRect(px, py, 1, TILE);
-                        ctx.fillRect(px, py, TILE, 1);
+                        if (SPRITES.tile_empty_cave && SPRITES.tile_empty_cave.complete) {
+                            ctx.drawImage(SPRITES.tile_empty_cave, px, py, TILE, TILE);
+                        } else {
+                            ctx.fillStyle = '#14100a';
+                            ctx.fillRect(px, py, TILE, TILE);
+                        }
+                        // Depth darkening overlay
+                        const depthFade = Math.min(0.5, ty / 800);
+                        if (depthFade > 0) {
+                            ctx.fillStyle = `rgba(0,0,0,${depthFade})`;
+                            ctx.fillRect(px, py, TILE, TILE);
+                        }
                     }
                     break;
                 }
@@ -2293,49 +2317,45 @@ function drawPod() {
         }
     }
 
-    // Pod body
-    const bodyColor = G.podColor || '#f80';
-    ctx.fillStyle = bodyColor;
-    // Main hull
-    ctx.beginPath();
-    ctx.moveTo(px + 4, py + TILE * 0.15);
-    ctx.lineTo(px + TILE - 4, py + TILE * 0.15);
-    ctx.lineTo(px + TILE - 2, py + TILE * 0.85);
-    ctx.lineTo(px + 2, py + TILE * 0.85);
-    ctx.closePath();
-    ctx.fill();
+    // Pod body — sprite-based
+    // Select sprite based on state (priority: drilling > damaged > flying > idle)
+    let podSprite = SPRITES.pod_idle;
+    let flipH = false;
+    const damaged = G.hull < getMaxHull() * 0.3;
+    if (G.drilling) {
+        if (G.drillDir === 'left') { podSprite = SPRITES.pod_drilling_left; }
+        else if (G.drillDir === 'right') { podSprite = SPRITES.pod_drilling_right; }
+        else { podSprite = SPRITES.pod_drilling_down; }
+    } else if (damaged) {
+        podSprite = SPRITES.pod_damaged;
+    } else if (isFlying) {
+        const frame = (Math.floor(G.t * 12) % 3) + 1;
+        podSprite = SPRITES['pod_flying_frame' + frame];
+    } else if (Math.abs(G.pod.vx) > 10) {
+        // Facing direction when moving horizontally (not drilling)
+        flipH = G.pod.vx < 0;
+    }
 
-    // Hull highlight
-    ctx.fillStyle = 'rgba(255,255,255,0.15)';
-    ctx.fillRect(px + 5, py + TILE * 0.15, TILE * 0.3, TILE * 0.6);
+    // Shadow sprite beneath pod (if above ground)
+    if (G.pod.y < 0 && SPRITES.pod_shadow && SPRITES.pod_shadow.complete) {
+        ctx.drawImage(SPRITES.pod_shadow, px, -4, TILE, TILE * 0.25);
+    }
 
-    // Cockpit window
-    ctx.fillStyle = '#3ad';
-    ctx.fillRect(px + TILE * 0.2, py + TILE * 0.2, TILE * 0.6, TILE * 0.22);
-    // Cockpit glare
-    ctx.fillStyle = 'rgba(255,255,255,0.25)';
-    ctx.fillRect(px + TILE * 0.22, py + TILE * 0.22, TILE * 0.25, TILE * 0.08);
-
-    // Side boosters
-    ctx.fillStyle = '#666';
-    ctx.fillRect(px, py + TILE * 0.35, 4, TILE * 0.3);
-    ctx.fillRect(px + TILE - 4, py + TILE * 0.35, 4, TILE * 0.3);
-
-    // Drill (bottom)
-    ctx.fillStyle = '#999';
-    const drillLen = G.drilling ? TILE * 0.35 + Math.sin(G.t * 20) * TILE * 0.08 : TILE * 0.2;
-    ctx.beginPath();
-    ctx.moveTo(cx - TILE * 0.18, py + TILE * 0.85);
-    ctx.lineTo(cx + TILE * 0.18, py + TILE * 0.85);
-    ctx.lineTo(cx, py + TILE * 0.85 + drillLen);
-    ctx.fill();
-    // Drill highlight
-    ctx.fillStyle = '#bbb';
-    ctx.beginPath();
-    ctx.moveTo(cx - TILE * 0.05, py + TILE * 0.85);
-    ctx.lineTo(cx + TILE * 0.05, py + TILE * 0.85);
-    ctx.lineTo(cx, py + TILE * 0.85 + drillLen * 0.7);
-    ctx.fill();
+    if (podSprite && podSprite.complete && podSprite.naturalWidth > 0) {
+        if (flipH) {
+            ctx.save();
+            ctx.translate(px + TILE, py);
+            ctx.scale(-1, 1);
+            ctx.drawImage(podSprite, 0, 0, TILE, TILE);
+            ctx.restore();
+        } else {
+            ctx.drawImage(podSprite, px, py, TILE, TILE);
+        }
+    } else {
+        // Fallback minimal body
+        ctx.fillStyle = G.podColor || '#f80';
+        ctx.fillRect(px + 4, py + 6, TILE - 8, TILE - 12);
+    }
 
     // Drilling sparks
     if (G.drilling) {
@@ -2376,46 +2396,46 @@ function drawBuildings() {
         const platX = (b.x - 1) * TILE, platW = (b.w + 2) * TILE;
         const rgb = hexToRgb(b.color);
 
-        // Platform foundation (stone look)
-        for (let py = 0; py < 3; py++) {
-            for (let px = b.x - 1; px < b.x + b.w + 1; px++) {
-                const tx = px * TILE, ty = py * TILE;
-                ctx.fillStyle = py === 0 ? '#5a5a5a' : '#4a4a4a';
-                ctx.fillRect(tx, ty, TILE, TILE);
-                ctx.fillStyle = '#666';
-                ctx.fillRect(tx + 1, ty + 1, TILE - 2, TILE - 2);
-                if ((px + py) % 2 === 0) {
-                    ctx.fillStyle = 'rgba(0,0,0,0.1)';
-                    ctx.fillRect(tx + 2, ty + 2, TILE - 4, TILE - 4);
+        // Platform foundation — sprite-based
+        const platformImg = SPRITES.surface_platform;
+        if (platformImg && platformImg.complete && platformImg.naturalWidth > 0) {
+            for (let pyt = 0; pyt < 3; pyt++) {
+                for (let pxt = b.x - 1; pxt < b.x + b.w + 1; pxt++) {
+                    ctx.drawImage(platformImg, pxt * TILE, pyt * TILE, TILE, TILE);
                 }
             }
+        } else {
+            // Fallback
+            ctx.fillStyle = '#4a4a4a';
+            ctx.fillRect(platX, 0, platW, TILE * 3);
         }
-        ctx.fillStyle = '#888';
-        ctx.fillRect(platX, 0, platW, 2);
 
         // Ambient glow behind building
         ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},0.12)`;
         ctx.fillRect(bx - 12, by - 4, bw + 24, bh + 12);
 
-        // Building body — colored gradient (NOT dark)
-        const bodyGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
-        bodyGrad.addColorStop(0, `rgba(${Math.min(255,rgb.r+40)},${Math.min(255,rgb.g+40)},${Math.min(255,rgb.b+40)},0.85)`);
-        bodyGrad.addColorStop(0.5, `rgba(${rgb.r},${rgb.g},${rgb.b},0.7)`);
-        bodyGrad.addColorStop(1, `rgba(${Math.floor(rgb.r*0.4)},${Math.floor(rgb.g*0.4)},${Math.floor(rgb.b*0.4)},0.9)`);
-        ctx.fillStyle = bodyGrad;
-        ctx.fillRect(bx + 2, by + 12, bw - 4, bh - 12);
-
-        // Building outline — thick colored border
-        ctx.strokeStyle = b.color;
-        ctx.lineWidth = 3;
-        ctx.strokeRect(bx + 2, by + 12, bw - 4, bh - 12);
-
-        // Roof — wide colored band
-        ctx.fillStyle = b.color;
-        ctx.fillRect(bx - 6, by + 6, bw + 12, 10);
-        // Roof highlight
-        ctx.fillStyle = `rgba(255,255,255,0.3)`;
-        ctx.fillRect(bx - 6, by + 6, bw + 12, 3);
+        // Building sprite — keyed off action
+        const buildingSpriteMap = {
+            'fuel': 'building_fuel_station',
+            'sell': 'building_mineral_buyer',
+            'upgrades': 'building_upgrade_shop',
+            'items': 'building_item_shop',
+            'save': 'building_save_station'
+        };
+        const bKey = buildingSpriteMap[b.action];
+        const bImg = bKey && SPRITES[bKey];
+        if (bImg && bImg.complete && bImg.naturalWidth > 0) {
+            ctx.drawImage(bImg, bx, by, bw, bh);
+        } else {
+            // Fallback gradient body
+            const bodyGrad = ctx.createLinearGradient(bx, by, bx, by + bh);
+            bodyGrad.addColorStop(0, `rgba(${Math.min(255,rgb.r+40)},${Math.min(255,rgb.g+40)},${Math.min(255,rgb.b+40)},0.85)`);
+            bodyGrad.addColorStop(1, `rgba(${Math.floor(rgb.r*0.4)},${Math.floor(rgb.g*0.4)},${Math.floor(rgb.b*0.4)},0.9)`);
+            ctx.fillStyle = bodyGrad;
+            ctx.fillRect(bx + 2, by + 12, bw - 4, bh - 12);
+            ctx.fillStyle = b.color;
+            ctx.fillRect(bx - 6, by + 6, bw + 12, 10);
+        }
 
         // ═══ SIGN ABOVE BUILDING (floating sign) ═══
         const signPad = 6;
@@ -2440,30 +2460,11 @@ function drawBuildings() {
         ctx.textBaseline = 'middle';
         ctx.fillText(b.name, bx + bw / 2, signY + signH / 2);
 
-        // ═══ ICON — large and centered on building face ═══
-        ctx.font = `${TILE}px serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(b.icon, bx + bw / 2, by + bh / 2 + 12);
-
-        // Window lights — pulsing glow
-        const winStartY = by + 26;
-        const winRows = 2;
-        const winCols = Math.max(2, Math.floor((bw - 24) / 20));
-        const winSpacingX = (bw - 24) / winCols;
-        for (let wr = 0; wr < winRows; wr++) {
-            for (let wc = 0; wc < winCols; wc++) {
-                const wx = bx + 12 + wc * winSpacingX + winSpacingX / 2 - 5;
-                const wy = winStartY + wr * 24;
-                if (wy > by + bh - 16) continue;
-                const pulse = 0.4 + Math.sin(G.t * 2 + wc * 1.7 + wr * 2.3 + b.x) * 0.3;
-                ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${pulse})`;
-                ctx.fillRect(wx, wy, 10, 10);
-                ctx.strokeStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},0.5)`;
-                ctx.lineWidth = 1;
-                ctx.strokeRect(wx, wy, 10, 10);
-            }
-        }
+        // Subtle pulsing window glow overlay (sprites already have windows;
+        // this adds life without obscuring the artwork)
+        const pulse = 0.06 + Math.sin(G.t * 2 + b.x) * 0.04;
+        ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${pulse})`;
+        ctx.fillRect(bx + 4, by + 16, bw - 8, bh - 20);
 
         // ═══ "PRESS ↓" hint when player is near ═══
         const podTx = Math.floor(G.pod.x / TILE);
