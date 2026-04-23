@@ -2339,7 +2339,7 @@ function drawPod() {
     // Sprite canvas is 130×160, pod bottom-anchored at y=155 in sprite coords.
     // Draw scaled so sprite width = 2×TILE, preserving aspect.
     const SPR_W = 130, SPR_H = 160, SPR_BOT = 155;
-    const drawW = TILE * 2;
+    const drawW = Math.round(TILE * 1.5);
     const drawH = Math.round(drawW * SPR_H / SPR_W);
     // Align: bottom of sprite at py+TILE, center on tile center
     const drawX = cx - drawW / 2;
