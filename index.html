@@ -2336,20 +2336,29 @@ function drawPod() {
         flipH = G.pod.vx < 0;
     }
 
+    // Sprite canvas is 130×160, pod bottom-anchored at y=155 in sprite coords.
+    // Draw scaled so sprite width = 2×TILE, preserving aspect.
+    const SPR_W = 130, SPR_H = 160, SPR_BOT = 155;
+    const drawW = TILE * 2;
+    const drawH = Math.round(drawW * SPR_H / SPR_W);
+    // Align: bottom of sprite at py+TILE, center on tile center
+    const drawX = cx - drawW / 2;
+    const drawY = (py + TILE) - Math.round(drawW * SPR_BOT / SPR_W);
+
     // Shadow sprite beneath pod (if above ground)
     if (G.pod.y < 0 && SPRITES.pod_shadow && SPRITES.pod_shadow.complete) {
-        ctx.drawImage(SPRITES.pod_shadow, px, -4, TILE, TILE * 0.25);
+        ctx.drawImage(SPRITES.pod_shadow, cx - TILE * 0.5, -4, TILE, TILE * 0.2);
     }
 
     if (podSprite && podSprite.complete && podSprite.naturalWidth > 0) {
         if (flipH) {
             ctx.save();
-            ctx.translate(px + TILE, py);
+            ctx.translate(drawX + drawW, drawY);
             ctx.scale(-1, 1);
-            ctx.drawImage(podSprite, 0, 0, TILE, TILE);
+            ctx.drawImage(podSprite, 0, 0, drawW, drawH);
             ctx.restore();
         } else {
-            ctx.drawImage(podSprite, px, py, TILE, TILE);
+            ctx.drawImage(podSprite, drawX, drawY, drawW, drawH);
         }
     } else {
         // Fallback minimal body
