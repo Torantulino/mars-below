@@ -663,13 +663,11 @@ function updatePod(dt) {
     const tileBelowY = Math.floor(feetWorldY / TILE);
     G.onGround = isSolid(tileX, tileBelowY) && pod.vy >= 0;
 
-    // Also check if pod is inside a solid tile (snap up)
-    // Use center of pod for X to avoid wall-adjacent false triggers
+    // Snap up only if pod head is meaningfully inside a solid tile (>2px overlap)
     const centerTx = Math.floor((pod.x + TILE * 0.5) / TILE);
     const headTyCheck = Math.floor(pod.y / TILE);
-    if (isSolid(centerTx, headTyCheck) && !G.drilling && pod.vy >= 0) {
-        // Only snap up if the tile directly under the pod center is solid
-        // and we're not moving upward (which would cause wall-flying)
+    const headOverlap = pod.y - headTyCheck * TILE; // px pod.y is inside the solid tile row
+    if (isSolid(centerTx, headTyCheck) && !G.drilling && pod.vy >= 0 && headOverlap > 2) {
         pod.y = headTyCheck * TILE - TILE;
         pod.vy = 0;
         G.onGround = true;
@@ -2337,9 +2335,10 @@ function drawPod() {
     }
 
     // Sprite canvas is 130×160, pod bottom-anchored at y=155 in sprite coords.
-    // Draw scaled so sprite width = 2×TILE, preserving aspect.
+    // Draw scaled so hull body fills ~1 tile. SPR_BOT=155 is hull bottom,
+    // hull top ~y=70, so hull is 85/160 of total height. drawH*(85/160)=TILE → drawH≈75.
     const SPR_W = 130, SPR_H = 160, SPR_BOT = 155;
-    const drawW = Math.round(TILE * 1.5);
+    const drawW = Math.round(TILE * 160 / 85 * 130 / 160);  // ≈61px
     const drawH = Math.round(drawW * SPR_H / SPR_W);
     // Align: bottom of sprite at py+TILE, center on tile center
     const drawX = cx - drawW / 2;
